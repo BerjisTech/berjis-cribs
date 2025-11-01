@@ -1,0 +1,156 @@
+<section class="space-y-8">
+  <header class="crib-hero">
+    <div>
+      <p class="hero-label">Apartment overview</p>
+      <h1 class="hero-title">{{ crib()?.propertyName || 'Unit unavailable' }}</h1>
+      <p class="hero-subtitle" *ngIf="crib()">
+        {{ crib()?.unitLabel }}
+        <span *ngIf="crib()?.address?.city"> · {{ crib()?.address?.city }}</span>
+        <span *ngIf="crib()?.address?.estate"> · {{ crib()?.address?.estate }}</span>
+      </p>
+    </div>
+    <div class="hero-actions">
+      <span class="hero-status" *ngIf="crib()">{{ crib()?.lease?.status || crib()?.leaseStatus || 'Unknown' }}</span>
+      <a routerLink="/dashboard" class="hero-link">Back to dashboard</a>
+    </div>
+  </header>
+
+  <div *ngIf="loading()" class="crib-loader">
+    <span class="loader-dot"></span>
+    <p>Loading unit details…</p>
+  </div>
+
+  <div *ngIf="error()" class="crib-error">
+    <p>{{ error() }}</p>
+  </div>
+
+  <ng-container *ngIf="!loading() && crib() as unit">
+    <section class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <article class="panel">
+        <h2 class="panel-title">Rent & billing</h2>
+        <p class="panel-subtitle">Stay on top of upcoming charges and history.</p>
+        <div class="billing-grid">
+          <div>
+            <p class="metric-label">Next payment</p>
+            <p class="metric-value">
+              {{ unit.nextPaymentAmount || unit.lease?.rate || 0 | currency:'KES':'symbol-narrow':'1.0-0' }}
+            </p>
+            <p class="metric-meta" *ngIf="unit.nextPaymentDue">Due {{ unit.nextPaymentDue | date:'mediumDate' }}</p>
+          </div>
+          <div>
+            <p class="metric-label">Lease window</p>
+            <p class="metric-value">
+              {{ unit.lease?.startDate | date:'mediumDate' }} – {{ unit.lease?.endDate | date:'mediumDate' || 'Open' }}
+            </p>
+            <p class="metric-meta">{{ unit.lease?.type || 'Flexible stay' }}</p>
+          </div>
+          <div>
+            <p class="metric-label">Balance</p>
+            <p class="metric-value">
+              {{ unit.balance || 0 | currency:'KES':'symbol-narrow':'1.0-0' }}
+            </p>
+            <p class="metric-meta">Includes arrears and deposits.</p>
+          </div>
+        </div>
+
+        <div class="table-wrapper" *ngIf="unit.payments && unit.payments.length > 0; else noPayments">
+          <h3 class="table-title">Recent receipts</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Method</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let payment of unit.payments">
+                <td>{{ payment.paidOn | date:'mediumDate' }}</td>
+                <td>{{ payment.amount | currency:'KES':'symbol-narrow':'1.0-0' }}</td>
+                <td class="status-cell">
+                  <span [class]="payment.status === 'paid' ? 'badge-paid' : 'badge-pending'">{{ payment.status | titlecase }}</span>
+                </td>
+                <td>{{ payment.method || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <ng-template #noPayments>
+          <div class="panel-empty">
+            <span class="text-2xl">🧾</span>
+            <p>No receipts yet. Once payments post, they will render here.</p>
+          </div>
+        </ng-template>
+      </article>
+
+      <aside class="panel">
+        <h2 class="panel-title">Landlord & support</h2>
+        <p class="panel-subtitle">Send messages, view contacts, and track maintenance.</p>
+
+        <dl class="contact-grid" *ngIf="landlordContact() as contact; else noContact">
+          <div>
+            <dt>Landlord</dt>
+            <dd>{{ contact.name || '—' }}</dd>
+          </div>
+          <div>
+            <dt>Support phone</dt>
+            <dd>{{ contact.phone || '—' }}</dd>
+          </div>
+          <div>
+            <dt>Support email</dt>
+            <dd>{{ contact.email || '—' }}</dd>
+          </div>
+        </dl>
+        <ng-template #noContact>
+          <div class="panel-empty">
+            <span class="text-2xl">☎️</span>
+            <p>Support contacts will appear once the landlord shares them.</p>
+          </div>
+        </ng-template>
+
+        <div class="panel-divider"></div>
+
+        <h3 class="panel-title text-base">Maintenance</h3>
+        <div *ngIf="unit.maintenance && unit.maintenance.length > 0; else noMaintenance" class="space-y-3">
+          <article *ngFor="let ticket of unit.maintenance" class="maintenance-card">
+            <div class="flex items-center justify-between">
+              <h4 class="text-sm font-semibold text-white">{{ ticket.category }}</h4>
+              <span class="maintenance-status">{{ ticket.status | titlecase }}</span>
+            </div>
+            <p class="text-xs text-slate-400">Opened {{ ticket.openedAt | date:'medium' }}</p>
+            <p class="text-xs text-slate-500" *ngIf="ticket.updatedAt">Updated {{ ticket.updatedAt | date:'medium' }}</p>
+          </article>
+        </div>
+        <ng-template #noMaintenance>
+          <div class="panel-empty">
+            <span class="text-2xl">🛠️</span>
+            <p>No maintenance tickets yet.</p>
+          </div>
+        </ng-template>
+      </aside>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Apartment notes</h2>
+      <p class="panel-subtitle">Key amenities, house rules, and attachments.</p>
+
+      <div class="amenities-grid" *ngIf="unit.amenities?.length; else noAmenities">
+        <span *ngFor="let amenity of unit.amenities" class="amenity-pill">{{ amenity }}</span>
+      </div>
+      <ng-template #noAmenities>
+        <div class="panel-empty">
+          <span class="text-2xl">🪴</span>
+          <p>No amenities recorded yet. Ask your landlord to update the profile.</p>
+        </div>
+      </ng-template>
+
+      <div class="media-grid" *ngIf="unit.media?.length">
+        <figure *ngFor="let media of unit.media">
+          <img [src]="media.url" [alt]="media.caption || unit.unitLabel" />
+          <figcaption *ngIf="media.caption">{{ media.caption }}</figcaption>
+        </figure>
+      </div>
+    </section>
+  </ng-container>
+</section>

@@ -20,12 +20,27 @@ export interface UserProfile {
 @Injectable({ providedIn: "root" })
 export class SessionService {
   private http = inject(HttpClient);
-  private state = signal({ user: null as UserProfile | null, roles: [] as string[], cribsRoles: [] as string[], loading: false });
+  private state = signal({
+    user: null as UserProfile | null,
+    roles: [] as string[],
+    cribsRoles: [] as string[],
+    loading: false,
+  });
 
   readonly user = computed(() => this.state().user);
   readonly roles = computed(() => this.state().roles);
   readonly cribsRoles = computed(() => this.state().cribsRoles);
   readonly loading = computed(() => this.state().loading);
+  readonly isAuthenticated = computed(() => !!this.state().user);
+  readonly isPlatformAdmin = computed(() => this.state().roles.includes("platform.admin"));
+  readonly isCribsAdmin = computed(() => this.state().cribsRoles.some((role) => role === "cribs.admin" || role.startsWith("cribs.admin.")));
+  readonly canManageLandlord = computed(() =>
+    this.state().cribsRoles.some(
+      (role) =>
+        role === "cribs.landlord" || role.startsWith("cribs.landlord.") || role.startsWith("cribs.staff") || role.startsWith("cribs.admin"),
+    ),
+  );
+  readonly canAccessAdmin = computed(() => this.isPlatformAdmin() || this.isCribsAdmin());
 
   async ensure(): Promise<boolean> {
     if (this.state().loading) {
@@ -80,12 +95,30 @@ export class SessionService {
   }
 
   hasRole(role: string) {
+    if (!role) {
+      return false;
+    }
     const current = this.state();
     return current.roles.includes(role) || current.cribsRoles.includes(role);
   }
 
-  isAdmin() {
+  hasAnyRole(...roles: string[]) {
+    return roles.some((role) => this.hasRole(role));
+  }
+
+  hasRoleWithPrefix(prefix: string) {
+    if (!prefix) {
+      return false;
+    }
     const current = this.state();
-    return current.roles.some((r) => r.includes("admin")) || current.cribsRoles.some((r) => r.includes("admin"));
+    return current.roles.some((role) => role.startsWith(prefix)) || current.cribsRoles.some((role) => role.startsWith(prefix));
+  }
+
+  isAdmin() {
+    return this.isPlatformAdmin() || this.isCribsAdmin();
+  }
+
+  isLandlordTeam() {
+    return this.canManageLandlord();
   }
 }

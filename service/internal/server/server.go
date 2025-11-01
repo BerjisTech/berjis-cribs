@@ -62,6 +62,7 @@ func New(opts Options) *fiber.App {
 
 	registerLandlordRoutes(app, protected)
 	registerPropertyRoutes(app, protected)
+	registerTenantRoutes(app, protected)
 	registerAdminRoutes(app, protected)
 	registerSupportRoutes(app, protected)
 

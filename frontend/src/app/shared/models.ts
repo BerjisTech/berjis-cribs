@@ -106,3 +106,68 @@ export interface AuditEntry {
   payload: any;
   createdAt: string;
 }
+
+export interface TenantUnitSummary {
+  id: string;
+  propertyId: string;
+  propertyName: string;
+  unitLabel: string;
+  address?: any;
+  occupancyStatus?: string;
+  leaseStatus?: string;
+  leaseType?: string;
+  leaseId?: string;
+  leaseStartedAt?: string;
+  leaseEndsAt?: string;
+  nextPaymentDue?: string;
+  nextPaymentAmount?: number;
+  balance?: number;
+  updatedAt?: string;
+}
+
+export interface TenantUnitDetail extends TenantUnitSummary {
+  landlordName?: string;
+  supportEmail?: string;
+  supportPhone?: string;
+  description?: string;
+  amenities?: string[];
+  media?: TenantMedia[];
+  lease?: LeaseSummary;
+  payments?: PaymentSummary[];
+  maintenance?: MaintenanceTicketSummary[];
+}
+
+export interface LeaseSummary {
+  id: string;
+  type: string;
+  status: string;
+  startDate: string;
+  endDate?: string;
+  rate: number;
+  frequency: 'nightly' | 'weekly' | 'monthly' | 'custom';
+  deposit?: number;
+}
+
+export interface PaymentSummary {
+  id: string;
+  amount: number;
+  status: 'paid' | 'pending' | 'overdue' | string;
+  method?: string;
+  reference?: string;
+  paidOn?: string;
+}
+
+export interface MaintenanceTicketSummary {
+  id: string;
+  category: string;
+  status: string;
+  priority?: string;
+  openedAt: string;
+  updatedAt?: string;
+}
+
+export interface TenantMedia {
+  url: string;
+  caption?: string;
+  kind?: string;
+}

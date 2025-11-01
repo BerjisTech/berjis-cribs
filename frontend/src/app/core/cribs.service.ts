@@ -1,7 +1,7 @@
 import { Injectable, inject } from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Observable } from "rxjs";
-import { map } from "rxjs/operators";
+import { Observable, of } from "rxjs";
+import { catchError, map } from "rxjs/operators";
 import { environment } from "../../environments/environment";
 import {
   LandlordEnrollment,
@@ -12,6 +12,8 @@ import {
   PublicProperty,
   NotificationItem,
   AuditEntry,
+  TenantUnitSummary,
+  TenantUnitDetail,
 } from "../shared/models";
 
 @Injectable({ providedIn: "root" })
@@ -140,5 +142,33 @@ export class CribsService {
 
   adminRejectProperty(id: string, reason: string) {
     return this.http.post(`${this.base}/v1/admin/cribs/properties/${id}/reject`, { reason });
+  }
+
+  getTenantUnits(): Observable<TenantUnitSummary[]> {
+    return this.http
+      .get<{ success: boolean; data: TenantUnitSummary[] }>(`${this.base}/v1/tenant/units`)
+      .pipe(
+        map((res) => res.data ?? []),
+        catchError((error) => {
+          if (error?.status === 403 || error?.status === 404) {
+            return of([]);
+          }
+          throw error;
+        }),
+      );
+  }
+
+  getTenantUnit(id: string): Observable<TenantUnitDetail | null> {
+    return this.http
+      .get<{ success: boolean; data: TenantUnitDetail }>(`${this.base}/v1/tenant/units/${id}`)
+      .pipe(
+        map((res) => res.data ?? null),
+        catchError((error) => {
+          if (error?.status === 404 || error?.status === 403) {
+            return of(null);
+          }
+          throw error;
+        }),
+      );
   }
 }

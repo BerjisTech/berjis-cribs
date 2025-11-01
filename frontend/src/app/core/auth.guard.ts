@@ -33,3 +33,18 @@ export const adminGuard: CanActivateFn = async (_route, state) => {
   }
   return true;
 };
+
+export const landlordGuard: CanActivateFn = async (_route, state) => {
+  const session = inject(SessionService);
+  const router = inject(Router);
+  const ok = await session.ensure();
+  if (!ok) {
+    redirectToLanding(state.url);
+    return false;
+  }
+  if (!session.isLandlordTeam()) {
+    router.navigateByUrl("/");
+    return false;
+  }
+  return true;
+};

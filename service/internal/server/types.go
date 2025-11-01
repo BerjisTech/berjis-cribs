@@ -130,3 +130,81 @@ type PublicMedia struct {
 	Kind string `db:"kind" json:"kind"`
 	URL  string `db:"url" json:"url"`
 }
+
+type Address struct {
+	City      string `json:"city,omitempty"`
+	Estate    string `json:"estate,omitempty"`
+	Block     string `json:"block,omitempty"`
+	Phase     string `json:"phase,omitempty"`
+	Floor     string `json:"floor,omitempty"`
+	Building  string `json:"building,omitempty"`
+	Community string `json:"community,omitempty"`
+	Street    string `json:"street,omitempty"`
+	Reference string `json:"reference,omitempty"`
+}
+
+type TenantUnitSummary struct {
+	ID                string     `json:"id"`
+	PropertyID        string     `json:"propertyId"`
+	PropertyName      string     `json:"propertyName"`
+	UnitLabel         string     `json:"unitLabel"`
+	Address           *Address   `json:"address,omitempty"`
+	OccupancyStatus   string     `json:"occupancyStatus,omitempty"`
+	LeaseStatus       string     `json:"leaseStatus,omitempty"`
+	LeaseType         string     `json:"leaseType,omitempty"`
+	LeaseID           string     `json:"leaseId,omitempty"`
+	LeaseStartedAt    *time.Time `json:"leaseStartedAt,omitempty"`
+	LeaseEndsAt       *time.Time `json:"leaseEndsAt,omitempty"`
+	NextPaymentDue    *time.Time `json:"nextPaymentDue,omitempty"`
+	NextPaymentAmount float64    `json:"nextPaymentAmount,omitempty"`
+	Balance           float64    `json:"balance,omitempty"`
+	UpdatedAt         *time.Time `json:"updatedAt,omitempty"`
+}
+
+type TenantUnitDetail struct {
+	TenantUnitSummary
+	LandlordName string                     `json:"landlordName,omitempty"`
+	SupportEmail string                     `json:"supportEmail,omitempty"`
+	SupportPhone string                     `json:"supportPhone,omitempty"`
+	Description  string                     `json:"description,omitempty"`
+	Amenities    []string                   `json:"amenities,omitempty"`
+	Lease        *LeaseSummary              `json:"lease,omitempty"`
+	Payments     []PaymentSummary           `json:"payments,omitempty"`
+	Maintenance  []MaintenanceTicketSummary `json:"maintenance,omitempty"`
+	Media        []TenantMedia              `json:"media,omitempty"`
+}
+
+type LeaseSummary struct {
+	ID        string     `json:"id"`
+	Type      string     `json:"type"`
+	Status    string     `json:"status"`
+	StartDate *time.Time `json:"startDate,omitempty"`
+	EndDate   *time.Time `json:"endDate,omitempty"`
+	Rate      float64    `json:"rate"`
+	Frequency string     `json:"frequency"`
+	Deposit   float64    `json:"deposit,omitempty"`
+}
+
+type PaymentSummary struct {
+	ID        string     `json:"id"`
+	Amount    float64    `json:"amount"`
+	Status    string     `json:"status"`
+	Method    string     `json:"method,omitempty"`
+	Reference string     `json:"reference,omitempty"`
+	PaidOn    *time.Time `json:"paidOn,omitempty"`
+}
+
+type MaintenanceTicketSummary struct {
+	ID        string     `json:"id"`
+	Category  string     `json:"category"`
+	Status    string     `json:"status"`
+	Priority  string     `json:"priority,omitempty"`
+	OpenedAt  *time.Time `json:"openedAt,omitempty"`
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+}
+
+type TenantMedia struct {
+	URL     string `json:"url"`
+	Caption string `json:"caption,omitempty"`
+	Kind    string `json:"kind,omitempty"`
+}
