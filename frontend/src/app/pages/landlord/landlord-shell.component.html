@@ -1,0 +1,42 @@
+<section class="space-y-6">
+  <header class="rad-lg border border-white/10 bg-white/5 px-6 py-6 shadow-glow">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <p class="text-xs uppercase tracking-[0.4em] text-blue-300/70">Landlord workspace</p>
+        <h2 class="text-2xl font-semibold text-white">{{ profile()?.displayName || 'Enroll to unlock property workflows' }}</h2>
+        <p class="mt-1 text-sm text-slate-400 max-w-2xl">
+          Manage onboarding, compliance, inventory, billing, and notifications for your housing portfolio. Drafts stay private until submitted for review.
+        </p>
+      </div>
+      <div class="flex gap-3">
+        <a routerLink="/landlord/properties/new" class="inline-flex items-center justify-center pill bg-[var(--cribs-accent-gold)] px-5 py-2 text-sm font-semibold text-slate-900 shadow-glow">New property</a>
+        <a routerLink="/enroll" class="inline-flex items-center justify-center pill bg-blue-600/80 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-900/40">Review enrollment</a>
+      </div>
+    </div>
+    <div class="mt-6 grid gap-4 md:grid-cols-3" *ngIf="!loading(); else landlordLoading">
+      <div class="rad border border-white/10 bg-slate-900/70 p-4">
+        <p class="text-xs text-slate-500">Properties</p>
+        <p class="mt-2 text-2xl font-semibold text-white">{{ properties().length }}</p>
+      </div>
+      <div class="rad border border-white/10 bg-slate-900/70 p-4">
+        <p class="text-xs text-slate-500">Status</p>
+        <p class="mt-2 text-lg text-slate-200">{{ profile() ? 'Active' : 'Pending enrollment' }}</p>
+      </div>
+      <div class="rad border border-white/10 bg-slate-900/70 p-4">
+        <p class="text-xs text-slate-500">Support</p>
+        <p class="mt-2 text-sm text-slate-300">Email {{ profile()?.supportEmail || 'ops@berjis.tech' }}</p>
+      </div>
+    </div>
+    <ng-template #landlordLoading>
+      <p class="mt-6 text-sm text-slate-400">Loading landlord dashboard…</p>
+    </ng-template>
+  </header>
+
+  <nav class="flex flex-wrap gap-3">
+    <a *ngFor="let tab of tabs" [routerLink]="tab.link" routerLinkActive="active" class="pill border border-white/10 px-4 py-2 text-sm text-slate-200 hover:bg-white/10">{{ tab.label }}</a>
+  </nav>
+
+  <section class="rad-lg border border-white/10 bg-white/5 p-6 shadow-glow">
+    <router-outlet></router-outlet>
+  </section>
+</section>

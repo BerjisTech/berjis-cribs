@@ -1,0 +1,32 @@
+.input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.7);
+  padding: 12px 16px;
+  font-size: 0.875rem;
+  color: #e2e8f0;
+}
+.input::placeholder {
+  color: #64748b;
+}
+.input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.6);
+}
+button:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.media-card .media-remove {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.media-card:hover .media-remove,
+.media-card:focus-within .media-remove {
+  opacity: 1;
+  pointer-events: auto;
+}

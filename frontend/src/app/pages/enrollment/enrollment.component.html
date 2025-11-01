@@ -1,0 +1,84 @@
+<section class="grid gap-6 lg:grid-cols-[320px_1fr]">
+  <aside class="rad-lg border border-white/10 bg-white/5 p-6 shadow-glow">
+    <p class="text-xs uppercase tracking-[0.4em] text-blue-300/70">Enrollment progress</p>
+    <ol class="mt-5 space-y-4">
+      <li *ngFor="let step of steps; let i = index" class="flex items-start gap-3">
+        <span class="flex h-8 w-8 items-center justify-center pill border text-sm font-semibold" [ngClass]="{ 'border-blue-400 text-blue-200 bg-blue-500/20': i === currentStepIndex(), 'border-white/10 text-slate-400 bg-white/5': i !== currentStepIndex() }">
+          {{ i + 1 }}
+        </span>
+        <div>
+          <p class="text-sm font-semibold" [class.text-white]="i === currentStepIndex()" [class.text-slate-400]="i !== currentStepIndex()">{{ step.title }}</p>
+          <p class="text-xs text-slate-500 mt-1">{{ step.description }}</p>
+        </div>
+      </li>
+    </ol>
+    <div class="mt-6 rad bg-blue-600/10 p-4 text-xs text-blue-100">
+      We manually review each enrollment for compliance, safety, and market fit. Detailed submissions move faster.
+    </div>
+  </aside>
+
+  <form [formGroup]="form" class="rad-lg border border-white/10 bg-white/5 p-6 shadow-glow space-y-6">
+    <header>
+      <p class="text-xs uppercase tracking-[0.4em] text-blue-300/70">Step {{ currentStepIndex() + 1 }} of {{ steps.length }}</p>
+      <h2 class="mt-2 text-2xl font-semibold text-white">{{ currentStep().title }}</h2>
+      <p class="mt-1 text-sm text-slate-400 max-w-3xl">{{ currentStep().description }}</p>
+    </header>
+
+    <ng-container [ngSwitch]="currentStep().key">
+      <div *ngSwitchCase="'organization'" class="grid gap-4 md:grid-cols-2">
+        <label *ngFor="let field of steps[0].fields" class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-slate-200">{{ field.label }}</span>
+          <input [formControlName]="field.key" type="text" class="input" [placeholder]="field.placeholder"/>
+          <span *ngIf="field.helper" class="text-xs text-slate-500">{{ field.helper }}</span>
+        </label>
+      </div>
+
+      <div *ngSwitchCase="'compliance'" class="grid gap-4">
+        <label *ngFor="let field of steps[1].fields" class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-slate-200">{{ field.label }}</span>
+          <textarea rows="4" [formControlName]="field.key" class="input" [placeholder]="field.helper"></textarea>
+          <span *ngIf="field.helper" class="text-xs text-slate-500">{{ field.helper }}</span>
+        </label>
+      </div>
+
+      <div *ngSwitchCase="'operations'" class="grid gap-4">
+        <label *ngFor="let field of steps[2].fields" class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-slate-200">{{ field.label }}</span>
+          <textarea rows="3" [formControlName]="field.key" class="input" [placeholder]="field.helper"></textarea>
+          <span *ngIf="field.helper" class="text-xs text-slate-500">{{ field.helper }}</span>
+        </label>
+      </div>
+
+      <div *ngSwitchCase="'contacts'" class="grid gap-4 md:grid-cols-2">
+        <label *ngFor="let field of steps[3].fields" class="flex flex-col gap-2 md:col-span-1" [class.md\:col-span-2]="field.key === 'supportChannels'">
+          <span class="text-sm font-medium text-slate-200">{{ field.label }}</span>
+          <input [formControlName]="field.key" [type]="field.type || 'text'" class="input" [placeholder]="field.helper" />
+          <span *ngIf="field.helper" class="text-xs text-slate-500">{{ field.helper }}</span>
+        </label>
+      </div>
+
+      <div *ngSwitchCase="'review'" class="space-y-4 text-sm text-slate-200">
+        <p>Review the summary below. When you submit, our team will run compliance checks, contact references, and confirm onboarding timelines.</p>
+        <div class="rad border border-white/10 bg-slate-900/70 p-4 text-xs text-slate-400 space-y-2">
+          <p><strong class="text-slate-100">Organization:</strong> {{ form.value.organization?.legalName || '—' }} ({{ form.value.organization?.entityType || '—' }})</p>
+          <p><strong class="text-slate-100">Compliance:</strong> {{ form.value.compliance?.documents || 'Pending attachments' }}</p>
+          <p><strong class="text-slate-100">Operations:</strong> {{ form.value.operations?.utilities || 'Pending details' }}</p>
+          <p><strong class="text-slate-100">Contact:</strong> {{ form.value.contacts?.contactName }} · {{ form.value.contacts?.contactEmail }}</p>
+        </div>
+      </div>
+    </ng-container>
+
+    <div class="flex flex-wrap items-center justify-between gap-3 pt-4">
+      <div class="flex gap-3">
+        <button type="button" class="pill border border-white/10 px-4 py-2 text-sm text-slate-200 hover:bg-white/10" (click)="prevStep()" [disabled]="currentStepIndex() === 0">Back</button>
+        <button type="button" class="pill border border-blue-400/60 bg-blue-600/80 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-900/40" (click)="nextStep()" *ngIf="currentStepIndex() < steps.length - 1">Next</button>
+      </div>
+      <div class="flex gap-3">
+        <button type="button" class="pill border border-white/10 px-4 py-2 text-sm text-slate-200 hover:bg-white/10" (click)="saveDraft()" [disabled]="saving()">{{ saving() ? 'Saving…' : 'Save draft' }}</button>
+        <button *ngIf="currentStepIndex() === steps.length - 1" type="button" class="pill bg-[var(--cribs-accent-gold)] px-5 py-2 text-sm font-semibold text-slate-900" (click)="submitEnrollment()" [disabled]="submission() === 'saving'">{{ submission() === 'submitted' ? 'Submitted' : 'Submit for approval' }}</button>
+      </div>
+    </div>
+    <p *ngIf="submission() === 'submitted'" class="text-sm text-green-300">Enrollment submitted. We will notify you inside landing admin when the review is complete.</p>
+    <p *ngIf="submission() === 'error'" class="text-sm text-red-300">Submission failed. Please try again after saving your draft.</p>
+  </form>
+</section>

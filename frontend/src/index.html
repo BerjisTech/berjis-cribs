@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en" class="h-full bg-slate-900">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Berjis Cribs</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" />
+    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" />
+  </head>
+  <body class="h-full font-[Inter] text-slate-100">
+    <app-root></app-root>
+    <script>
+      (function () {
+        if (typeof window === "undefined") {
+          return;
+        }
+        const w = window;
+        w.__ENV = w.__ENV || {};
+        const defaultToken = "pk.eyJ1IjoibG9yZHNvbWJvIiwiYSI6ImNsNWJjOGdoejA2NXQzanNlNGpqb2Y5d3EifQ.YyGLTwRRa6ZqeNK7c93Rig";
+        const existingToken = w.__ENV.mapboxToken || w.MAPBOX_TOKEN || w.__MAPBOX_TOKEN__;
+        const token = existingToken || defaultToken;
+        const existingStyle = w.__ENV.mapboxStyle || w.__MAPBOX_STYLE__;
+        const style = existingStyle || "mapbox://styles/mapbox/dark-v11";
+        w.__ENV.mapboxToken = token;
+        w.__MAPBOX_TOKEN__ = w.__MAPBOX_TOKEN__ || token;
+        w.MAPBOX_TOKEN = w.MAPBOX_TOKEN || token;
+        w.__ENV.mapboxStyle = style;
+        w.__MAPBOX_STYLE__ = w.__MAPBOX_STYLE__ || style;
+      })();
+    </script>
+  </body>
+</html>

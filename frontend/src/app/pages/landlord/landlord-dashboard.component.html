@@ -1,0 +1,24 @@
+<div class="space-y-4">
+  <div *ngIf="loading()" class="rad border border-white/10 bg-white/5 p-4 text-sm text-slate-400">
+    Loading properties…
+  </div>
+  <div *ngIf="!loading() && properties().length === 0" class="rad border border-white/10 bg-white/5 p-6 text-sm text-slate-400">
+    No properties yet. Start by creating your first property blueprint.
+  </div>
+  <article *ngFor="let property of properties()" class="rad border border-white/10 bg-slate-900/70 p-5">
+    <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div>
+        <h3 class="text-lg font-semibold text-white">{{ property.name }}</h3>
+        <p class="text-sm text-slate-400 max-w-2xl">{{ property.description || 'Add property details to help our team review faster.' }}</p>
+        <div class="mt-3 flex flex-wrap gap-2 text-xs text-slate-400">
+          <span>Units: {{ property.units?.length || 0 }}</span>
+          <span *ngIf="property.location?.city">• {{ property.location.city }}</span>
+        </div>
+      </div>
+      <div class="flex flex-col items-end gap-3">
+        <span class="pill px-3 py-1 text-xs font-semibold" [ngClass]="statusColours[property.status] || 'bg-slate-700 text-slate-100'">{{ property.status }}</span>
+        <a [routerLink]="['/landlord/properties', property.id]" class="pill border border-white/10 px-4 py-2 text-xs text-slate-200 hover:bg-white/10">Open workspace</a>
+      </div>
+    </div>
+  </article>
+</div>

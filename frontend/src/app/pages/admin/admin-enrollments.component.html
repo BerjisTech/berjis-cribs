@@ -1,0 +1,48 @@
+<div class="space-y-4">
+  <div class="flex flex-wrap gap-3">
+    <button *ngFor="let status of statuses" class="pill border border-white/10 px-4 py-2 text-sm text-slate-200" [ngClass]="{ 'bg-accent-soft': selectedStatus() === status.key }" (click)="switchStatus(status.key)">{{ status.label }}</button>
+  </div>
+
+  <div *ngIf="loading()" class="rad border border-white/10 bg-white/5 p-4 text-sm text-slate-400">Loading enrollments…</div>
+  <div *ngIf="!loading() && enrollments().length === 0" class="rad border border-white/10 bg-white/5 p-4 text-sm text-slate-400">No enrollments in this state.</div>
+
+  <article *ngFor="let enrollment of enrollments()" class="rad border border-white/10 bg-slate-900/70 p-5 space-y-3">
+    <header class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h3 class="text-lg font-semibold text-white">{{ enrollment.payload?.organization?.legalName || 'Unnamed organization' }}</h3>
+        <p class="text-sm text-slate-400">Contact: {{ enrollment.contactName }} · {{ enrollment.contactEmail }}</p>
+        <p class="text-xs text-slate-500">Submitted {{ enrollment.submittedAt | date:'medium' }}</p>
+      </div>
+      <span class="pill border border-white/10 px-3 py-1 text-xs text-slate-300">{{ enrollment.status }}</span>
+    </header>
+    <div class="grid gap-3 md:grid-cols-2 text-xs text-slate-300">
+      <div>
+        <p class="text-slate-400">Entity type</p>
+        <p>{{ enrollment.payload?.organization?.entityType || '—' }}</p>
+      </div>
+      <div>
+        <p class="text-slate-400">Portfolio scale</p>
+        <p>{{ enrollment.payload?.organization?.portfolioScale || '—' }}</p>
+      </div>
+      <div class="md:col-span-2">
+        <p class="text-slate-400">Compliance notes</p>
+        <p class="whitespace-pre-wrap leading-relaxed">{{ enrollment.payload?.compliance?.documents || '—' }}</p>
+      </div>
+    </div>
+    <div *ngIf="selectedStatus() === 'submitted'" class="rad border border-white/10 bg-white/5 p-4">
+      <form [formGroup]="reviewForm" class="grid gap-3 md:grid-cols-2">
+        <input formControlName="displayName" class="input" placeholder="Display name" />
+        <input formControlName="supportEmail" class="input" placeholder="Support email" />
+        <input formControlName="supportPhone" class="input" placeholder="Support phone" />
+        <input formControlName="notes" class="input md:col-span-2" placeholder="Internal review notes" />
+        <div class="md:col-span-2 flex gap-3">
+          <button type="button" class="pill bg-blue-600/80 px-4 py-2 text-sm font-semibold text-white" (click)="approve(enrollment)">Approve</button>
+          <div class="flex items-center gap-2">
+            <input formControlName="reason" class="input" placeholder="Rejection reason" />
+            <button type="button" class="pill bg-red-600/80 px-4 py-2 text-sm font-semibold text-white" (click)="reject(enrollment)">Reject</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </article>
+</div>
