@@ -1,4 +1,4 @@
-<section class="grid gap-6 lg:grid-cols-[320px_1fr]">
+<section class="mt-[150px] max-w-200 mx-auto grid gap-6 lg:grid-cols-[320px_1fr]">
   <aside class="rad-lg border border-white/10 bg-white/5 p-6 shadow-glow">
     <p class="text-xs uppercase tracking-[0.4em] text-blue-300/70">Enrollment progress</p>
     <ol class="mt-5 space-y-4">
@@ -25,7 +25,7 @@
     </header>
 
     <ng-container [ngSwitch]="currentStep().key">
-      <div *ngSwitchCase="'organization'" class="grid gap-4 md:grid-cols-2">
+      <div *ngSwitchCase="'organization'" formGroupName="organization" class="grid gap-4 md:grid-cols-2">
         <label *ngFor="let field of steps[0].fields" class="flex flex-col gap-2">
           <span class="text-sm font-medium text-slate-200">{{ field.label }}</span>
           <input [formControlName]="field.key" type="text" class="input" [placeholder]="field.placeholder"/>
@@ -33,7 +33,7 @@
         </label>
       </div>
 
-      <div *ngSwitchCase="'compliance'" class="grid gap-4">
+      <div *ngSwitchCase="'compliance'" formGroupName="compliance" class="grid gap-4">
         <label *ngFor="let field of steps[1].fields" class="flex flex-col gap-2">
           <span class="text-sm font-medium text-slate-200">{{ field.label }}</span>
           <textarea rows="4" [formControlName]="field.key" class="input" [placeholder]="field.helper"></textarea>
@@ -41,7 +41,7 @@
         </label>
       </div>
 
-      <div *ngSwitchCase="'operations'" class="grid gap-4">
+      <div *ngSwitchCase="'operations'" formGroupName="operations" class="grid gap-4">
         <label *ngFor="let field of steps[2].fields" class="flex flex-col gap-2">
           <span class="text-sm font-medium text-slate-200">{{ field.label }}</span>
           <textarea rows="3" [formControlName]="field.key" class="input" [placeholder]="field.helper"></textarea>
@@ -49,7 +49,7 @@
         </label>
       </div>
 
-      <div *ngSwitchCase="'contacts'" class="grid gap-4 md:grid-cols-2">
+      <div *ngSwitchCase="'contacts'" formGroupName="contacts" class="grid gap-4 md:grid-cols-2">
         <label *ngFor="let field of steps[3].fields" class="flex flex-col gap-2 md:col-span-1" [class.md\:col-span-2]="field.key === 'supportChannels'">
           <span class="text-sm font-medium text-slate-200">{{ field.label }}</span>
           <input [formControlName]="field.key" [type]="field.type || 'text'" class="input" [placeholder]="field.helper" />

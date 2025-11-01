@@ -52,7 +52,9 @@ export class SessionService {
         this.http.get<VerifyResponse>(environment.coreApi + "/v1/auth/verify", { withCredentials: true })
       );
       if (!verify?.data?.valid) {
-        await firstValueFrom(this.http.post(environment.coreApi + "/v1/auth/refresh", {}, { withCredentials: true }));
+        await this.refreshAccessToken().catch((error) => {
+          console.warn("access token refresh failed", error);
+        });
         verify = await firstValueFrom(
           this.http.get<VerifyResponse>(environment.coreApi + "/v1/auth/verify", { withCredentials: true })
         );
@@ -60,6 +62,10 @@ export class SessionService {
           this.state.update((s) => ({ ...s, user: null, roles: [], cribsRoles: [], loading: false }));
           return false;
         }
+      } else if (typeof window !== "undefined" && !window.sessionStorage.getItem("berjis.accessToken")) {
+        await this.refreshAccessToken().catch((error) => {
+          console.warn("failed to seed access token", error);
+        });
       }
       const [profileRes, rolesRes, cribsRes] = await Promise.all([
         firstValueFrom(
@@ -120,5 +126,24 @@ export class SessionService {
 
   isLandlordTeam() {
     return this.canManageLandlord();
+  }
+
+  private async refreshAccessToken(): Promise<string | null> {
+    const res = await firstValueFrom(
+      this.http.post<{ success: boolean; data?: { access?: string } }>(
+        environment.coreApi + "/v1/auth/refresh",
+        {},
+        { withCredentials: true },
+      ),
+    );
+    const token = res?.data?.access ?? null;
+    if (typeof window !== "undefined") {
+      if (token) {
+        window.sessionStorage.setItem("berjis.accessToken", token);
+      } else {
+        window.sessionStorage.removeItem("berjis.accessToken");
+      }
+    }
+    return token;
   }
 }
