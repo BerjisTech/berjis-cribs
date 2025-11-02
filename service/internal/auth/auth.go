@@ -56,7 +56,7 @@ func Middleware(opts Options) fiber.Handler {
 		user, err := parseUser(raw, opts)
 		if err != nil {
 			if opts.Env == "development" {
-				if id := c.Get("X-User-ID"); id != "" {
+				if id := c.Get("X-User-UUID"); id != "" {
 					user = &User{ID: id, Email: c.Get("X-User-Email")}
 					err = nil
 				}

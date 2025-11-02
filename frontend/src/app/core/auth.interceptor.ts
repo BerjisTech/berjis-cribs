@@ -15,7 +15,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     if (typeof window !== 'undefined') {
       const devId = (window as any).__DEV_USER_ID__ as string | undefined;
       if (devId && !req.headers.has('Authorization') && req.url.startsWith(cribsBase)) {
-        req = req.clone({ setHeaders: { 'X-User-ID': devId } });
+        req = req.clone({ setHeaders: { 'X-User-UUID': devId } });
       }
     }
   }
