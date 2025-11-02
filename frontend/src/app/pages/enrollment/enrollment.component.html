@@ -75,7 +75,7 @@
       </div>
       <div class="flex gap-3">
         <button type="button" class="pill border border-white/10 px-4 py-2 text-sm text-slate-200 hover:bg-white/10" (click)="saveDraft()" [disabled]="saving()">{{ saving() ? 'Saving…' : 'Save draft' }}</button>
-        <button *ngIf="currentStepIndex() === steps.length - 1" type="button" class="pill bg-[var(--cribs-accent-gold)] px-5 py-2 text-sm font-semibold text-slate-900" (click)="submitEnrollment()" [disabled]="submission() === 'saving'">{{ submission() === 'submitted' ? 'Submitted' : 'Submit for approval' }}</button>
+        <button *ngIf="currentStepIndex() === steps.length - 1" type="button" class="pill bg-(--cribs-accent-gold) px-5 py-2 text-sm font-semibold text-slate-900" (click)="submitEnrollment()" [disabled]="submission() === 'saving'">{{ submission() === 'submitted' ? 'Submitted' : 'Submit for approval' }}</button>
       </div>
     </div>
     <p *ngIf="submission() === 'submitted'" class="text-sm text-green-300">Enrollment submitted. We will notify you inside landing admin when the review is complete.</p>
