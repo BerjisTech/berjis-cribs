@@ -10,12 +10,21 @@ import { SessionService } from "./core/session.service";
 })
 export class AppComponent implements OnInit {
   private session = inject(SessionService);
-
+  isDark = false;
   async ngOnInit() {
+    const persisted = (localStorage.getItem('theme') || '').toLowerCase();
+    const preferDark = persisted === 'dark';
+    this.setTheme(preferDark ? 'dark' : 'light');
     try {
       await this.session.ensure();
     } catch (error) {
       console.warn("session bootstrap failed", error);
     }
+  }
+  toggleTheme() { this.setTheme(this.isDark ? 'light' : 'dark'); }
+  private setTheme(mode: 'light' | 'dark') {
+    this.isDark = mode === 'dark';
+    document.documentElement.classList.toggle('dark', mode === 'dark');
+    try { localStorage.setItem('theme', mode); } catch {}
   }
 }
