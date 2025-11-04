@@ -130,6 +130,64 @@ export class EnrollmentComponent implements OnInit {
     return this.parseDocuments((this.form.value as any)?.compliance?.documents).length;
   }
 
+  // ----- Support hours helpers -----
+  private defaultSchedule() {
+    const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    return days.map((d, idx) => this.fb.group({
+      day: [d],
+      closed: [idx >= 5],
+      openAt: ['08:00'],
+      closeAt: ['17:00'],
+    }));
+  }
+
+  get schedule(): FormArray {
+    return (this.form.get('operations')?.get('schedule') as unknown as FormArray);
+  }
+
+  selectPreset(preset: '24_7'|'weekdays_day'|'weekdays_24'|'custom'|'temp_closed'|'perm_closed') {
+    const ctrl = this.form.get('operations')?.get('supportPreset');
+    (ctrl as any)?.setValue(preset as any);
+    if (preset === 'custom') return;
+    const sched = this.schedule;
+    if (!sched) return;
+    for (let i=0; i<sched.length; i++) {
+      const g = sched.at(i) as any;
+      const isWeekend = i >= 5;
+      switch (preset) {
+        case '24_7':
+          g.patchValue({ closed: false, openAt: '00:00', closeAt: '23:59' });
+          break;
+        case 'weekdays_day':
+          g.patchValue({ closed: isWeekend, openAt: '09:00', closeAt: '17:00' });
+          break;
+        case 'weekdays_24':
+          g.patchValue({ closed: isWeekend, openAt: '00:00', closeAt: '23:59' });
+          break;
+        case 'temp_closed':
+        case 'perm_closed':
+          g.patchValue({ closed: true });
+          break;
+      }
+    }
+  }
+
+  private describeSchedule(): string {
+    const preset = (this.form.get('operations')?.get('supportPreset')?.value as any) as string;
+    if (preset === '24_7') return '24/7';
+    if (preset === 'weekdays_day') return 'Weekdays 09:00–17:00';
+    if (preset === 'weekdays_24') return 'Weekdays 24 hours';
+    if (preset === 'temp_closed') return 'Temporarily closed';
+    if (preset === 'perm_closed') return 'Permanently closed';
+    const sched = (this.schedule?.value as any[]) || [];
+    const label = (i: number) => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i];
+    const parts: string[] = [];
+    sched.forEach((d, i) => {
+      if (d.closed) parts.push(`${label(i)} Closed`); else parts.push(`${label(i)} ${d.openAt}–${d.closeAt}`);
+    });
+    return parts.join('; ');
+  }
+
   private buildPayload() {
     const v = this.form.value;
     return {
@@ -142,12 +200,12 @@ export class EnrollmentComponent implements OnInit {
       },
       compliance: {
         // Backend expects an array at compliance.documents
-        documents: this.parseDocuments(v.compliance?.documents || ""),
+        documents: this.parseDocuments((v as any)?.compliance?.documents),
         screening: v.compliance?.screening ?? "",
       },
       operations: {
         utilities: v.operations?.utilities ?? "",
-        supportHours: v.operations?.supportHours ?? "",
+        supportHours: this.describeSchedule(),
         paymentMethods: v.operations?.paymentMethods ?? "",
       },
       contacts: {
@@ -184,7 +242,13 @@ export class EnrollmentComponent implements OnInit {
   private patchForm(data: LandlordEnrollment) {
     const payload = data.payload || {};
     if (payload.organization) {
-      this.form.get("organization")?.patchValue(payload.organization);
+      const org: any = payload.organization;
+      this.form.get('organization')?.patchValue({
+        legalName: org?.legalName ?? '',
+        registrationNo: org?.registrationNo ?? '',
+        entityType: org?.entityType ?? org?.type ?? '',
+        portfolioScale: org?.portfolioScale ?? '',
+      });
     }
     if (payload.compliance) {
       const compliance: any = { ...payload.compliance };

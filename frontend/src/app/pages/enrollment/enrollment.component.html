@@ -26,35 +26,88 @@
 
     <ng-container [ngSwitch]="currentStep().key">
       <div *ngSwitchCase="'organization'" formGroupName="organization" class="grid gap-4 md:grid-cols-2">
-        <label *ngFor="let field of steps[0].fields" class="flex flex-col gap-2">
-          <span class="text-sm font-medium text-slate-200">{{ field.label }}</span>
-          <input [formControlName]="field.key" type="text" class="input" [placeholder]="field.placeholder"/>
-          <span *ngIf="field.helper" class="text-xs text-slate-500">{{ field.helper }}</span>
+        <label class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-slate-200">Registered name</span>
+          <input formControlName="legalName" type="text" class="input" placeholder="Berjis Homes Ltd" />
+        </label>
+        <label class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-slate-200">Registration / KRA PIN</span>
+          <input formControlName="registrationNo" type="text" class="input" />
+        </label>
+        <label class="flex flex-col gap-2 md:col-span-1">
+          <span class="text-sm font-medium text-slate-200">Entity type</span>
+          <select formControlName="entityType" class="input">
+            <option value="" disabled>Select entity type</option>
+            <option value="company">Company</option>
+            <option value="partnership">Partnership</option>
+            <option value="trust">Trust</option>
+            <option value="sole_proprietor">Sole proprietor</option>
+            <option value="llc">LLC</option>
+            <option value="other">Other</option>
+          </select>
+          <span class="text-xs text-slate-500">Choose the legal entity category.</span>
+        </label>
+        <label class="flex flex-col gap-2 md:col-span-1">
+          <span class="text-sm font-medium text-slate-200">Units managed</span>
+          <input formControlName="portfolioScale" type="number" min="0" class="input" placeholder="e.g., 25" />
+          <span class="text-xs text-slate-500">Approximate number of active units.</span>
         </label>
       </div>
 
       <div *ngSwitchCase="'compliance'" formGroupName="compliance" class="grid gap-4">
-        <label *ngFor="let field of steps[1].fields" class="flex flex-col gap-2">
-          <span class="text-sm font-medium text-slate-200">{{ field.label }}</span>
-          <textarea rows="4" [formControlName]="field.key" class="input" [placeholder]="field.helper"></textarea>
-          <span *ngIf="field.helper" class="text-xs text-slate-500">{{ field.helper }}</span>
+        <label class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-slate-200">Compliance documents</span>
+          <textarea rows="4" formControlName="documents" class="input" placeholder="Paste links (one per line) to KRA certificates, insurance, municipal approvals"></textarea>
+          <span class="text-xs text-slate-500">Uploads coming next; for now share document links (one per line).</span>
+        </label>
+        <label class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-slate-200">Background screening</span>
+          <textarea rows="4" formControlName="screening" class="input" placeholder="Describe your tenant/guest screening workflows"></textarea>
         </label>
       </div>
 
       <div *ngSwitchCase="'operations'" formGroupName="operations" class="grid gap-4">
-        <label *ngFor="let field of steps[2].fields" class="flex flex-col gap-2">
-          <span class="text-sm font-medium text-slate-200">{{ field.label }}</span>
-          <textarea rows="3" [formControlName]="field.key" class="input" [placeholder]="field.helper"></textarea>
-          <span *ngIf="field.helper" class="text-xs text-slate-500">{{ field.helper }}</span>
+        <label class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-slate-200">Utilities & billing</span>
+          <textarea rows="3" formControlName="utilities" class="input" placeholder="Who manages water, power, internet; optionally list billed utilities as comma-separated tags (e.g., water,power,internet)"></textarea>
+          <span class="text-xs text-slate-500">If you add billed utilities, separate them with commas — we’ll display them as tags.</span>
+        </label>
+        <div class="grid gap-3">
+          <span class="text-sm font-medium text-slate-200">Support hours</span>
+          <div class="grid gap-2 text-sm text-slate-300">
+            <label class="inline-flex items-center gap-2"><input type="radio" name="supportPreset" (change)="selectPreset('24_7')"> 24/7</label>
+            <label class="inline-flex items-center gap-2"><input type="radio" name="supportPreset" (change)="selectPreset('weekdays_day')"> Weekdays daytime (09:00–17:00)</label>
+            <label class="inline-flex items-center gap-2"><input type="radio" name="supportPreset" (change)="selectPreset('weekdays_24')"> Weekdays 24 hours</label>
+            <label class="inline-flex items-center gap-2"><input type="radio" name="supportPreset" (change)="selectPreset('temp_closed')"> Temporarily closed</label>
+            <label class="inline-flex items-center gap-2"><input type="radio" name="supportPreset" (change)="selectPreset('perm_closed')"> Permanently closed</label>
+            <label class="inline-flex items-center gap-2"><input type="radio" name="supportPreset" (change)="selectPreset('custom')"> Custom</label>
+          </div>
+          <div class="grid gap-2" *ngIf="form.get('operations')?.get('supportPreset')?.value === 'custom'">
+            <div class="grid gap-2 md:grid-cols-[140px_120px_120px] items-center" *ngFor="let g of schedule.controls; let i = index" [formGroup]="g">
+              <span class="text-sm text-slate-300">{{ g.value.day }}</span>
+              <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                <input type="checkbox" formControlName="closed" /> Closed
+              </label>
+              <div class="grid grid-cols-2 gap-2">
+                <input type="time" formControlName="openAt" class="input" [disabled]="g.value.closed" />
+                <input type="time" formControlName="closeAt" class="input" [disabled]="g.value.closed" />
+              </div>
+            </div>
+            <span class="text-xs text-slate-500">Set main business hours per day. Closed days are ignored.</span>
+          </div>
+        </div>
+        <label class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-slate-200">Accepted payment methods</span>
+          <textarea rows="2" formControlName="paymentMethods" class="input" placeholder="Comma-separated tags (e.g., mpesa number, mpesa paybill, mpesa till, bank, cash)"></textarea>
+          <span class="text-xs text-slate-500">We’ll turn comma-separated items into tags when reviewing.</span>
         </label>
       </div>
 
       <div *ngSwitchCase="'contacts'" formGroupName="contacts" class="grid gap-4 md:grid-cols-2">
-        <label *ngFor="let field of steps[3].fields" class="flex flex-col gap-2 md:col-span-1" [class.md\:col-span-2]="field.key === 'supportChannels'">
-          <span class="text-sm font-medium text-slate-200">{{ field.label }}</span>
-          <input [formControlName]="field.key" [type]="field.type || 'text'" class="input" [placeholder]="field.helper" />
-          <span *ngIf="field.helper" class="text-xs text-slate-500">{{ field.helper }}</span>
-        </label>
+        <label class="flex flex-col gap-2"><span class="text-sm font-medium text-slate-200">Point of contact</span><input formControlName="contactName" type="text" class="input" placeholder="Full name"/></label>
+        <label class="flex flex-col gap-2"><span class="text-sm font-medium text-slate-200">Email</span><input formControlName="contactEmail" type="email" class="input" placeholder="name@company.com"/></label>
+        <label class="flex flex-col gap-2"><span class="text-sm font-medium text-slate-200">Phone</span><input formControlName="contactPhone" type="tel" class="input" placeholder="+2547..."/></label>
+        <label class="flex flex-col gap-2 md:col-span-2"><span class="text-sm font-medium text-slate-200">Support channels</span><input formControlName="supportChannels" type="text" class="input" placeholder="Support hotline, WhatsApp, concierge"/></label>
       </div>
 
       <div *ngSwitchCase="'review'" class="space-y-4 text-sm text-slate-200">
