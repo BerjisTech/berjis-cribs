@@ -1,4 +1,4 @@
-import { NgFor, NgIf } from "@angular/common";
+import { NgFor, NgIf, NgClass, DatePipe } from "@angular/common";
 import { Component, inject, signal } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, FormGroup } from "@angular/forms";
 import { firstValueFrom } from "rxjs";
@@ -8,7 +8,7 @@ import { LandlordEnrollment } from "../../shared/models";
 @Component({
   selector: "app-admin-enrollments",
   standalone: true,
-  imports: [NgFor, NgIf, ReactiveFormsModule],
+  imports: [NgFor, NgIf, NgClass, DatePipe, ReactiveFormsModule],
   templateUrl: "./admin-enrollments.component.html",
   styleUrl: "./admin-enrollments.component.css",
 })

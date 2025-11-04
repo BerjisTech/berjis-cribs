@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/berjistech/berjis-ecosystem/cribs/service/internal/auth"
+	"github.com/berjistech/berjis-ecosystem/cribs/service/internal/coreapi"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -136,6 +137,16 @@ func registerAdminRoutes(app *fiber.App, deps protectedDeps) {
 		if err := tx.Commit(); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "commit failed"})
 		}
+
+		// Best-effort: enroll the user into the app and grant landlord role in Core API
+		// so that the frontend session immediately reflects permissions across apps.
+		// Failures here are logged via response message but do not roll back approval.
+		if deps.Config.CoreAPIBase != "" && deps.Config.CoreAPIToken != "" {
+			client := coreapi.New(deps.Config.CoreAPIBase, deps.Config.CoreAPIToken, deps.HTTPClient)
+			_ = client.EnrollApp("cribs", enrollment.UserUUID)
+			_ = client.GrantAppRole("cribs", enrollment.UserUUID, "cribs.landlord")
+		}
+
 		return c.JSON(fiber.Map{"success": true})
 	})
 

@@ -1,4 +1,4 @@
-import { NgFor, NgIf } from "@angular/common";
+import { NgFor, NgIf, NgClass } from "@angular/common";
 import { Component, inject, signal } from "@angular/core";
 import { ReactiveFormsModule, FormBuilder } from "@angular/forms";
 import { firstValueFrom } from "rxjs";
@@ -8,7 +8,7 @@ import { Property } from "../../shared/models";
 @Component({
   selector: "app-admin-properties",
   standalone: true,
-  imports: [NgFor, NgIf, ReactiveFormsModule],
+  imports: [NgFor, NgIf, NgClass, ReactiveFormsModule],
   templateUrl: "./admin-properties.component.html",
   styleUrl: "./admin-properties.component.css",
 })

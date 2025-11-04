@@ -74,11 +74,25 @@ export class SessionService {
           this.http.get<{ success: boolean; data: string[] }>(environment.coreApi + "/v1/apps/cribs/roles", { withCredentials: true })
         ),
       ]);
+      let cribsRolesArr = cribsRes?.data ?? [];
+      // Fallback: if Core API hasn't granted roles yet, but the user has an active landlord
+      // profile in Cribs, treat them as landlord on the client so UI unlocks immediately.
+      try {
+        if (!cribsRolesArr.some((r) => r === "cribs.landlord" || r.startsWith("cribs.landlord."))) {
+          const lr = await firstValueFrom(
+            this.http.get<{ success: boolean; data: any | null }>(environment.cribsApi + "/v1/landlord/profile", { withCredentials: true })
+          );
+          if (lr?.data && (lr as any).data.status === "active") {
+            cribsRolesArr = ["cribs.landlord", ...cribsRolesArr];
+          }
+        }
+      } catch { /* ignore */ }
+
       this.state.update((s) => ({
         ...s,
         user: profileRes?.data ?? null,
         roles: rolesRes?.data ?? [],
-        cribsRoles: cribsRes?.data ?? [],
+        cribsRoles: cribsRolesArr,
         loading: false,
       }));
       return true;

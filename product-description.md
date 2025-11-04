@@ -84,9 +84,9 @@ Organization → Property → Building → Unit (Door)
   - Bulk selection for operations
   
 - **Color Coding**
-  - 🟢 **Green**: Occupied
+  - 🟢 **blue**: Occupied
   - 🔴 **Red**: Available
-  - 🔵 **Blue Border**: Under Maintenance (can overlay on green/red)
+  - 🔵 **Blue Border**: Under Maintenance (can overlay on blue/red)
   - 🟡 **Yellow**: Reserved/Pending
   - ⚫ **Gray**: Inactive/Unlisted
 
