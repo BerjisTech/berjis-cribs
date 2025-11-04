@@ -1,15 +1,15 @@
 package server
 
 import (
-	"net/http"
-	"time"
+    "net/http"
+    "time"
 
-	"github.com/berjistech/berjis-ecosystem/cribs/service/internal/auth"
-	"github.com/berjistech/berjis-ecosystem/cribs/service/internal/config"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/limiter"
-	"github.com/jmoiron/sqlx"
+    "github.com/berjistech/berjis-ecosystem/cribs/service/internal/auth"
+    "github.com/berjistech/berjis-ecosystem/cribs/service/internal/config"
+    "github.com/gofiber/fiber/v2"
+    "github.com/gofiber/fiber/v2/middleware/cors"
+    "github.com/gofiber/fiber/v2/middleware/limiter"
+    "github.com/jmoiron/sqlx"
 )
 
 type Options struct {
@@ -28,7 +28,7 @@ func (o Options) httpClient() *http.Client {
 }
 
 func New(opts Options) *fiber.App {
-	app := fiber.New()
+    app := fiber.New()
 
     app.Use(cors.New(cors.Config{
         AllowOrigins:     opts.Config.AllowedOrigins,
@@ -54,7 +54,12 @@ func New(opts Options) *fiber.App {
 	}
 	registerPublicRoutes(app, publicDeps)
 
-	app.Use(auth.Middleware(auth.Options{HS256Secret: opts.Config.AuthHS256Secret, Env: opts.Config.Env}))
+    app.Use(auth.Middleware(auth.Options{HS256Secret: opts.Config.AuthHS256Secret, Env: opts.Config.Env}))
+
+    // Serve uploaded files (e.g., compliance documents) if configured
+    if opts.Config.UploadsDirectory != "" {
+        app.Static("/uploads", opts.Config.UploadsDirectory)
+    }
 
 	protected := protectedDeps{
 		publicDeps: publicDeps,

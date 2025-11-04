@@ -1,10 +1,11 @@
 package server
 
 import (
-	"encoding/json"
-	"time"
+    "encoding/json"
+    "os"
+    "time"
 
-	"github.com/aarondl/null/v8"
+    "github.com/aarondl/null/v8"
 )
 
 const (
@@ -124,6 +125,9 @@ type PublicProperty struct {
 	Media        []PublicMedia   `json:"media"`
 	UpdatedAt    time.Time       `db:"updated_at" json:"updatedAt"`
 }
+
+// mkdirAll wraps os.MkdirAll for internal helpers
+func mkdirAll(path string) error { return os.MkdirAll(path, 0o755) }
 
 type PublicMedia struct {
 	ID   string `db:"id" json:"id"`

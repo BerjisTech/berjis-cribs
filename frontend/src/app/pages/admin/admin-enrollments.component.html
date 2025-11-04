@@ -30,7 +30,7 @@
       </div>
     </div>
     <div *ngIf="selectedStatus() === 'submitted'" class="rad border border-white/10 bg-white/5 p-4">
-      <form [formGroup]="reviewForm" class="grid gap-3 md:grid-cols-2">
+      <form [formGroup]="formFor(enrollment)" class="grid gap-3 md:grid-cols-2">
         <input formControlName="displayName" class="input" placeholder="Display name" />
         <input formControlName="supportEmail" class="input" placeholder="Support email" />
         <input formControlName="supportPhone" class="input" placeholder="Support phone" />

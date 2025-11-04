@@ -144,6 +144,14 @@ export class CribsService {
     return this.http.post(`${this.base}/v1/admin/cribs/properties/${id}/reject`, { reason }, { withCredentials: true });
   }
 
+  uploadEnrollmentDocuments(files: File[]): Observable<string[]> {
+    const fd = new FormData();
+    files.forEach((f) => fd.append('files', f));
+    return this.http
+      .post<{ success: boolean; data: string[] }>(`${this.base}/v1/landlord/uploads`, fd, { withCredentials: true })
+      .pipe(map((res) => res.data ?? []));
+  }
+
   getTenantUnits(): Observable<TenantUnitSummary[]> {
     return this.http
       .get<{ success: boolean; data: TenantUnitSummary[] }>(`${this.base}/v1/tenant/units`, { withCredentials: true })

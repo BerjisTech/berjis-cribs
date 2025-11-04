@@ -17,7 +17,15 @@
     </div>
   </aside>
 
-  <form [formGroup]="form" class="rad-lg border border-white/10 bg-white/5 p-6 shadow-glow space-y-6">
+  <div *ngIf="submission() === 'submitted'" class="rad-lg border border-green-400/30 bg-green-500/10 p-8 shadow-glow space-y-4">
+    <h2 class="text-2xl font-semibold text-white">Enrollment submitted</h2>
+    <p class="text-slate-300">Thanks for completing your enrollment. Our team will review your documents, contact references, and confirm onboarding timelines. We’ll notify you in Landing when review is complete.</p>
+    <div class="flex gap-3">
+      <button type="button" class="pill bg-(--cribs-accent-gold) px-5 py-2 text-sm font-semibold text-slate-900" (click)="goHome()">Go to home</button>
+    </div>
+  </div>
+
+  <form *ngIf="submission() !== 'submitted'" [formGroup]="form" class="rad-lg border border-white/10 bg-white/5 p-6 shadow-glow space-y-6">
     <header>
       <p class="text-xs uppercase tracking-[0.4em] text-blue-300/70">Step {{ currentStepIndex() + 1 }} of {{ steps.length }}</p>
       <h2 class="mt-2 text-2xl font-semibold text-white">{{ currentStep().title }}</h2>
@@ -27,7 +35,7 @@
     <ng-container [ngSwitch]="currentStep().key">
       <div *ngSwitchCase="'organization'" formGroupName="organization" class="grid gap-4 md:grid-cols-2">
         <label class="flex flex-col gap-2">
-          <span class="text-sm font-medium text-slate-200">Registered name</span>
+          <span class="text-sm font-medium text-slate-200">Registered name <span class="text-red-400">*</span></span>
           <input formControlName="legalName" type="text" class="input" placeholder="Berjis Homes Ltd" />
         </label>
         <label class="flex flex-col gap-2">
@@ -35,7 +43,7 @@
           <input formControlName="registrationNo" type="text" class="input" />
         </label>
         <label class="flex flex-col gap-2 md:col-span-1">
-          <span class="text-sm font-medium text-slate-200">Entity type</span>
+          <span class="text-sm font-medium text-slate-200">Entity type <span class="text-red-400">*</span></span>
           <select formControlName="entityType" class="input">
             <option value="" disabled>Select entity type</option>
             <option value="company">Company</option>
@@ -55,11 +63,22 @@
       </div>
 
       <div *ngSwitchCase="'compliance'" formGroupName="compliance" class="grid gap-4">
-        <label class="flex flex-col gap-2">
-          <span class="text-sm font-medium text-slate-200">Compliance documents</span>
-          <textarea rows="4" formControlName="documents" class="input" placeholder="Paste links (one per line) to KRA certificates, insurance, municipal approvals"></textarea>
-          <span class="text-xs text-slate-500">Uploads coming next; for now share document links (one per line).</span>
-        </label>
+        <div class="grid gap-2">
+          <span class="text-sm font-medium text-slate-200">Compliance documents <span class="text-red-400">*</span></span>
+          <input type="file" multiple (change)="onSelectFiles($any($event.target).files)" class="input file:mr-3" />
+          <div class="flex gap-2">
+            <button type="button" class="pill border border-blue-400/60 bg-blue-600/80 px-3 py-1 text-sm" (click)="uploadSelected()" [disabled]="pendingFiles.length === 0">Upload selected</button>
+            <span class="text-xs text-slate-500" *ngIf="pendingFiles.length > 0">{{ pendingFiles.length }} file(s) ready</span>
+          </div>
+          <ul class="text-xs text-slate-300 space-y-1" *ngIf="uploadedUrls().length > 0">
+            <li *ngFor="let url of uploadedUrls()" class="flex items-center gap-2">
+              <a [href]="url" target="_blank" rel="noopener" class="underline">{{ url }}</a>
+              <button type="button" class="text-red-400 hover:text-red-300" (click)="removeUploaded(url)">Remove</button>
+            </li>
+          </ul>
+          <div class="text-xs text-slate-500">You can also paste links below (one per line) if documents are already online.</div>
+          <textarea rows="3" formControlName="documents" class="input" placeholder="https://..."></textarea>
+        </div>
         <label class="flex flex-col gap-2">
           <span class="text-sm font-medium text-slate-200">Background screening</span>
           <textarea rows="4" formControlName="screening" class="input" placeholder="Describe your tenant/guest screening workflows"></textarea>
@@ -67,11 +86,14 @@
       </div>
 
       <div *ngSwitchCase="'operations'" formGroupName="operations" class="grid gap-4">
-        <label class="flex flex-col gap-2">
+        <div class="grid gap-2">
           <span class="text-sm font-medium text-slate-200">Utilities & billing</span>
-          <textarea rows="3" formControlName="utilities" class="input" placeholder="Who manages water, power, internet; optionally list billed utilities as comma-separated tags (e.g., water,power,internet)"></textarea>
-          <span class="text-xs text-slate-500">If you add billed utilities, separate them with commas — we’ll display them as tags.</span>
-        </label>
+          <div class="flex flex-wrap gap-2">
+            <span *ngFor="let tag of utilitiesTags()" class="px-2 py-1 rounded bg-white/10 text-xs">{{ tag }} <button type="button" class="ml-1 text-red-300" (click)="removeUtility(tag)">×</button></span>
+          </div>
+          <input type="text" class="input" placeholder="Type and press Enter or comma (e.g., water, power, internet)" (keydown.enter)="$event.preventDefault(); addUtilityFromInput($any($event.target))" (blur)="addUtilityFromInput($any($event.target))" />
+          <span class="text-xs text-slate-500">Who manages water, power, internet. Add billed utilities as tags.</span>
+        </div>
         <div class="grid gap-3">
           <span class="text-sm font-medium text-slate-200">Support hours</span>
           <div class="grid gap-2 text-sm text-slate-300">
@@ -96,11 +118,13 @@
             <span class="text-xs text-slate-500">Set main business hours per day. Closed days are ignored.</span>
           </div>
         </div>
-        <label class="flex flex-col gap-2">
+        <div class="grid gap-2">
           <span class="text-sm font-medium text-slate-200">Accepted payment methods</span>
-          <textarea rows="2" formControlName="paymentMethods" class="input" placeholder="Comma-separated tags (e.g., mpesa number, mpesa paybill, mpesa till, bank, cash)"></textarea>
-          <span class="text-xs text-slate-500">We’ll turn comma-separated items into tags when reviewing.</span>
-        </label>
+          <div class="flex flex-wrap gap-2">
+            <span *ngFor="let tag of paymentsTags()" class="px-2 py-1 rounded bg-white/10 text-xs">{{ tag }} <button type="button" class="ml-1 text-red-300" (click)="removePayment(tag)">×</button></span>
+          </div>
+          <input type="text" class="input" placeholder="mpesa number, mpesa paybill, mpesa till, bank, cash" (keydown.enter)="$event.preventDefault(); addPaymentFromInput($any($event.target))" (blur)="addPaymentFromInput($any($event.target))" />
+        </div>
       </div>
 
       <div *ngSwitchCase="'contacts'" formGroupName="contacts" class="grid gap-4 md:grid-cols-2">
@@ -128,10 +152,9 @@
       </div>
       <div class="flex gap-3">
         <button type="button" class="pill border border-white/10 px-4 py-2 text-sm text-slate-200 hover:bg-white/10" (click)="saveDraft()" [disabled]="saving()">{{ saving() ? 'Saving…' : 'Save draft' }}</button>
-        <button *ngIf="currentStepIndex() === steps.length - 1" type="button" class="pill bg-(--cribs-accent-gold) px-5 py-2 text-sm font-semibold text-slate-900" (click)="submitEnrollment()" [disabled]="submission() === 'saving' || !readyToSubmit()">{{ submission() === 'submitted' ? 'Submitted' : 'Submit for approval' }}</button>
+        <button *ngIf="currentStepIndex() === steps.length - 1" type="button" class="pill bg-(--cribs-accent-gold) px-5 py-2 text-sm font-semibold text-slate-900" (click)="submitEnrollment()" [disabled]="submission() === 'saving' || !isReadyToSubmit()">{{ submission() === 'submitted' ? 'Submitted' : 'Submit for approval' }}</button>
       </div>
     </div>
-    <p *ngIf="submission() === 'submitted'" class="text-sm text-green-300">Enrollment submitted. We will notify you inside landing admin when the review is complete.</p>
     <p *ngIf="submission() === 'error'" class="text-sm text-red-300">{{ submissionError() || 'Submission failed. Please fix the form and try again.' }}</p>
   </form>
 </section>

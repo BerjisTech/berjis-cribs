@@ -1,6 +1,6 @@
 import { NgFor, NgIf } from "@angular/common";
 import { Component, inject, signal } from "@angular/core";
-import { FormBuilder, ReactiveFormsModule } from "@angular/forms";
+import { FormBuilder, ReactiveFormsModule, FormGroup } from "@angular/forms";
 import { firstValueFrom } from "rxjs";
 import { CribsService } from "../../core/cribs.service";
 import { LandlordEnrollment } from "../../shared/models";
@@ -25,13 +25,29 @@ export class AdminEnrollmentsComponent {
   readonly selectedStatus = signal("submitted");
   readonly enrollments = signal<LandlordEnrollment[]>([]);
   readonly loading = signal(true);
-  readonly reviewForm = this.fb.group({
-    displayName: [""],
-    supportEmail: [""],
-    supportPhone: [""],
-    notes: [""],
-    reason: [""],
-  });
+  private reviewForms = new Map<string, FormGroup>();
+
+  private makeForm(seed?: Partial<{displayName:string;supportEmail:string;supportPhone:string;notes:string;reason:string}>) {
+    return this.fb.group({
+      displayName: [seed?.displayName ?? ""],
+      supportEmail: [seed?.supportEmail ?? ""],
+      supportPhone: [seed?.supportPhone ?? ""],
+      notes: [seed?.notes ?? ""],
+      reason: [seed?.reason ?? ""],
+    });
+  }
+
+  formFor(e: LandlordEnrollment): FormGroup {
+    const key = e.id;
+    if (!this.reviewForms.has(key)) {
+      this.reviewForms.set(key, this.makeForm({
+        displayName: e.contactName || undefined,
+        supportEmail: e.contactEmail || undefined,
+        supportPhone: e.contactPhone || undefined,
+      }));
+    }
+    return this.reviewForms.get(key)!;
+  }
 
   constructor() {
     this.load();
@@ -43,6 +59,11 @@ export class AdminEnrollmentsComponent {
     try {
       const list = await firstValueFrom(this.cribs.adminListEnrollments(status));
       this.enrollments.set(list);
+      // reset dangling forms for items not in the new list
+      const keep = new Set(list.map(i => i.id));
+      for (const k of Array.from(this.reviewForms.keys())) {
+        if (!keep.has(k)) this.reviewForms.delete(k);
+      }
     } finally {
       this.loading.set(false);
     }
@@ -54,7 +75,7 @@ export class AdminEnrollmentsComponent {
   }
 
   async approve(enrollment: LandlordEnrollment) {
-    const value = this.reviewForm.value;
+    const value = this.formFor(enrollment).value as any;
     await firstValueFrom(
       this.cribs.adminApproveEnrollment(enrollment.id, {
         displayName: value.displayName || enrollment.contactName || "",
@@ -64,14 +85,14 @@ export class AdminEnrollmentsComponent {
       })
     );
     await this.load();
-    this.reviewForm.reset();
+    this.reviewForms.delete(enrollment.id);
   }
 
   async reject(enrollment: LandlordEnrollment) {
-    const reason = this.reviewForm.value.reason?.trim();
+    const reason = (this.formFor(enrollment).value as any).reason?.trim();
     if (!reason) return;
     await firstValueFrom(this.cribs.adminRejectEnrollment(enrollment.id, reason));
     await this.load();
-    this.reviewForm.reset();
+    this.reviewForms.delete(enrollment.id);
   }
 }

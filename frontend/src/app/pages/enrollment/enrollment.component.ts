@@ -1,5 +1,6 @@
 import { AsyncPipe, CommonModule, NgClass, NgFor, NgIf } from "@angular/common";
 import { Component, OnInit, computed, inject, signal } from "@angular/core";
+import { Router } from "@angular/router";
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 import { firstValueFrom } from "rxjs";
 import { CribsService } from "../../core/cribs.service";
@@ -22,6 +23,7 @@ interface StepDefinition {
 export class EnrollmentComponent implements OnInit {
   private fb = inject(FormBuilder);
   private cribs = inject(CribsService);
+  private router = inject(Router);
 
   readonly steps: StepDefinition[] = [
     {
@@ -78,6 +80,12 @@ export class EnrollmentComponent implements OnInit {
   readonly submission = signal<"idle" | "saving" | "submitted" | "error">("idle");
   readonly submissionError = signal<string | null>(null);
 
+  // UI: tags and uploads state
+  utilitiesTags = signal<string[]>([]);
+  paymentsTags = signal<string[]>([]);
+  uploadedUrls = signal<string[]>([]);
+  pendingFiles: File[] = [];
+
   readonly form = this.fb.group({
     organization: this.fb.group({
       legalName: ["", Validators.required],
@@ -91,7 +99,9 @@ export class EnrollmentComponent implements OnInit {
     }),
     operations: this.fb.group({
       utilities: [""],
+      supportPreset: ["weekdays_day"],
       supportHours: [""],
+      schedule: this.fb.array(this.defaultSchedule()),
       paymentMethods: [""],
     }),
     contacts: this.fb.group({
@@ -107,11 +117,11 @@ export class EnrollmentComponent implements OnInit {
 
   readonly currentStep = computed(() => this.steps[this.currentStepIndex()]);
 
-  // Form readiness (client-side mirror of backend requirements)
-  readonly readyToSubmit = computed(() => {
-    // Trust form validators for required fields and ensure at least one document link
-    return this.form.valid && this.documentsCount() > 0;
-  });
+  // Form readiness (method so it always re-evaluates with form state)
+  isReadyToSubmit(): boolean {
+    const hasDocs = (this.documentsCount() > 0) || (this.uploadedUrls().length > 0);
+    return this.form.valid && hasDocs;
+  }
 
   private parseDocuments(raw: any): string[] {
     if (Array.isArray(raw)) {
@@ -188,6 +198,41 @@ export class EnrollmentComponent implements OnInit {
     return parts.join('; ');
   }
 
+  // ----- Tags helpers -----
+  addUtilityFromInput(input: HTMLInputElement) {
+    const parts = (input.value || '').split(',').map(v => v.trim()).filter(Boolean);
+    if (parts.length) {
+      const set = new Set(this.utilitiesTags());
+      parts.forEach(p => set.add(p));
+      this.utilitiesTags.set(Array.from(set));
+      input.value = '';
+    }
+  }
+  removeUtility(tag: string) { this.utilitiesTags.set(this.utilitiesTags().filter(t => t !== tag)); }
+
+  addPaymentFromInput(input: HTMLInputElement) {
+    const parts = (input.value || '').split(',').map(v => v.trim()).filter(Boolean);
+    if (parts.length) {
+      const set = new Set(this.paymentsTags());
+      parts.forEach(p => set.add(p));
+      this.paymentsTags.set(Array.from(set));
+      input.value = '';
+    }
+  }
+  removePayment(tag: string) { this.paymentsTags.set(this.paymentsTags().filter(t => t !== tag)); }
+
+  // ----- Uploads -----
+  onSelectFiles(files: FileList | null) {
+    this.pendingFiles = files ? Array.from(files) : [];
+  }
+  async uploadSelected() {
+    if (this.pendingFiles.length === 0) return;
+    const urls = await firstValueFrom(this.cribs.uploadEnrollmentDocuments(this.pendingFiles));
+    this.uploadedUrls.set([ ...this.uploadedUrls(), ...urls ]);
+    this.pendingFiles = [];
+  }
+  removeUploaded(url: string) { this.uploadedUrls.set(this.uploadedUrls().filter(u => u !== url)); }
+
   private buildPayload() {
     const v = this.form.value;
     return {
@@ -199,14 +244,14 @@ export class EnrollmentComponent implements OnInit {
         portfolioScale: v.organization?.portfolioScale ?? "",
       },
       compliance: {
-        // Backend expects an array at compliance.documents
-        documents: this.parseDocuments((v as any)?.compliance?.documents),
+        // Prefer uploaded URLs; fallback to text links
+        documents: this.uploadedUrls().length > 0 ? this.uploadedUrls() : this.parseDocuments((v as any)?.compliance?.documents),
         screening: v.compliance?.screening ?? "",
       },
       operations: {
-        utilities: v.operations?.utilities ?? "",
+        utilities: this.utilitiesTags().join(', '),
         supportHours: this.describeSchedule(),
-        paymentMethods: v.operations?.paymentMethods ?? "",
+        paymentMethods: this.paymentsTags().join(', '),
       },
       contacts: {
         contactName: v.contacts?.contactName ?? "",
@@ -259,6 +304,13 @@ export class EnrollmentComponent implements OnInit {
     }
     if (payload.operations) {
       this.form.get("operations")?.patchValue(payload.operations);
+      const ops: any = payload.operations;
+      if (typeof ops?.utilities === 'string' && ops.utilities) {
+        this.utilitiesTags.set(ops.utilities.split(',').map((s:string)=>s.trim()).filter(Boolean));
+      }
+      if (typeof ops?.paymentMethods === 'string' && ops.paymentMethods) {
+        this.paymentsTags.set(ops.paymentMethods.split(',').map((s:string)=>s.trim()).filter(Boolean));
+      }
     }
     if (payload.contacts) {
       this.form.get("contacts")?.patchValue(payload.contacts);
@@ -322,7 +374,26 @@ export class EnrollmentComponent implements OnInit {
     }
   }
 
+  goHome() {
+    this.router.navigateByUrl("/");
+  }
+
   nextStep() {
+    const step = this.currentStep();
+    if (step.key === 'organization') {
+      const grp = this.form.get('organization');
+      grp?.markAllAsTouched();
+      if (!grp?.valid) return;
+    }
+    if (step.key === 'contacts') {
+      const grp = this.form.get('contacts');
+      grp?.markAllAsTouched();
+      if (!grp?.valid) return;
+    }
+    if (step.key === 'compliance') {
+      const ok = (this.documentsCount() > 0) || (this.uploadedUrls().length > 0);
+      if (!ok) { this.submissionError.set('Add at least one compliance document.'); return; }
+    }
     if (this.currentStepIndex() < this.steps.length - 1) {
       this.currentStepIndex.update((v) => v + 1);
     }
