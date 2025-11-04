@@ -11,7 +11,7 @@
     </div>
     <div class="hero-actions">
       <span class="hero-status" *ngIf="crib()">{{ crib()?.lease?.status || crib()?.leaseStatus || 'Unknown' }}</span>
-      <a routerLink="/dashboard" class="hero-link">Back to dashboard</a>
+      <a href="/dashboard" class="hero-link">Back to dashboard</a>
     </div>
   </header>
 

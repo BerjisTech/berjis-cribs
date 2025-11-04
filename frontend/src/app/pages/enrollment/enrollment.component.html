@@ -1,4 +1,4 @@
-<section class="mt-[150px] max-w-200 mx-auto grid gap-6 lg:grid-cols-[320px_1fr]">
+﻿<section class="mt-[150px] max-w-200 mx-auto grid gap-6 lg:grid-cols-[320px_1fr]">
   <aside class="rad-lg border border-white/10 bg-white/5 p-6 shadow-glow">
     <p class="text-xs uppercase tracking-[0.4em] text-blue-300/70">Enrollment progress</p>
     <ol class="mt-5 space-y-4">
@@ -61,9 +61,9 @@
         <p>Review the summary below. When you submit, our team will run compliance checks, contact references, and confirm onboarding timelines.</p>
         <div class="rad border border-white/10 bg-slate-900/70 p-4 text-xs text-slate-400 space-y-2">
           <p><strong class="text-slate-100">Organization:</strong> {{ form.value.organization?.legalName || '—' }} ({{ form.value.organization?.entityType || '—' }})</p>
-          <p><strong class="text-slate-100">Compliance:</strong> {{ form.value.compliance?.documents || 'Pending attachments' }}</p>
+          <p><strong class="text-slate-100">Compliance:</strong> {{ documentsCount() }} document(s)</p>
           <p><strong class="text-slate-100">Operations:</strong> {{ form.value.operations?.utilities || 'Pending details' }}</p>
-          <p><strong class="text-slate-100">Contact:</strong> {{ form.value.contacts?.contactName }} · {{ form.value.contacts?.contactEmail }}</p>
+          <p><strong class="text-slate-100">Contact:</strong> {{ form.value.contacts?.contactName }} &middot; {{ form.value.contacts?.contactEmail }}</p>
         </div>
       </div>
     </ng-container>
@@ -75,10 +75,10 @@
       </div>
       <div class="flex gap-3">
         <button type="button" class="pill border border-white/10 px-4 py-2 text-sm text-slate-200 hover:bg-white/10" (click)="saveDraft()" [disabled]="saving()">{{ saving() ? 'Saving…' : 'Save draft' }}</button>
-        <button *ngIf="currentStepIndex() === steps.length - 1" type="button" class="pill bg-(--cribs-accent-gold) px-5 py-2 text-sm font-semibold text-slate-900" (click)="submitEnrollment()" [disabled]="submission() === 'saving'">{{ submission() === 'submitted' ? 'Submitted' : 'Submit for approval' }}</button>
+        <button *ngIf="currentStepIndex() === steps.length - 1" type="button" class="pill bg-(--cribs-accent-gold) px-5 py-2 text-sm font-semibold text-slate-900" (click)="submitEnrollment()" [disabled]="submission() === 'saving' || !readyToSubmit()">{{ submission() === 'submitted' ? 'Submitted' : 'Submit for approval' }}</button>
       </div>
     </div>
     <p *ngIf="submission() === 'submitted'" class="text-sm text-green-300">Enrollment submitted. We will notify you inside landing admin when the review is complete.</p>
-    <p *ngIf="submission() === 'error'" class="text-sm text-red-300">Submission failed. Please try again after saving your draft.</p>
+    <p *ngIf="submission() === 'error'" class="text-sm text-red-300">{{ submissionError() || 'Submission failed. Please fix the form and try again.' }}</p>
   </form>
 </section>

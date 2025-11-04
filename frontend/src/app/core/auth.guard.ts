@@ -4,7 +4,9 @@ import { SessionService } from "./session.service";
 
 function redirectToLanding(currentUrl: string) {
   if (typeof window !== "undefined") {
-    const target = "https://berjis.tech/login?returnTo=" + encodeURIComponent(currentUrl);
+    const origin = window.location.origin;
+    const absolute = currentUrl?.startsWith("http") ? currentUrl : origin + currentUrl;
+    const target = "https://berjis.tech/login?returnTo=" + encodeURIComponent(absolute);
     window.location.href = target;
   }
 }

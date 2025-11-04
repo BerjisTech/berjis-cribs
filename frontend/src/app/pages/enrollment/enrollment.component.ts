@@ -76,6 +76,7 @@ export class EnrollmentComponent implements OnInit {
   readonly currentStepIndex = signal(0);
   readonly saving = signal(false);
   readonly submission = signal<"idle" | "saving" | "submitted" | "error">("idle");
+  readonly submissionError = signal<string | null>(null);
 
   readonly form = this.fb.group({
     organization: this.fb.group({
@@ -106,6 +107,59 @@ export class EnrollmentComponent implements OnInit {
 
   readonly currentStep = computed(() => this.steps[this.currentStepIndex()]);
 
+  // Form readiness (client-side mirror of backend requirements)
+  readonly readyToSubmit = computed(() => {
+    // Trust form validators for required fields and ensure at least one document link
+    return this.form.valid && this.documentsCount() > 0;
+  });
+
+  private parseDocuments(raw: any): string[] {
+    if (Array.isArray(raw)) {
+      return raw.map((s) => String(s).trim()).filter((s) => s.length > 0);
+    }
+    if (typeof raw === "string") {
+      return (raw || "")
+        .split(/\r?\n|,/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+    }
+    return [];
+  }
+
+  documentsCount(): number {
+    return this.parseDocuments((this.form.value as any)?.compliance?.documents).length;
+  }
+
+  private buildPayload() {
+    const v = this.form.value;
+    return {
+      organization: {
+        legalName: v.organization?.legalName ?? "",
+        registrationNo: v.organization?.registrationNo ?? "",
+        // Backend expects key: "type"
+        type: v.organization?.entityType ?? "",
+        portfolioScale: v.organization?.portfolioScale ?? "",
+      },
+      compliance: {
+        // Backend expects an array at compliance.documents
+        documents: this.parseDocuments(v.compliance?.documents || ""),
+        screening: v.compliance?.screening ?? "",
+      },
+      operations: {
+        utilities: v.operations?.utilities ?? "",
+        supportHours: v.operations?.supportHours ?? "",
+        paymentMethods: v.operations?.paymentMethods ?? "",
+      },
+      contacts: {
+        contactName: v.contacts?.contactName ?? "",
+        contactEmail: v.contacts?.contactEmail ?? "",
+        contactPhone: v.contacts?.contactPhone ?? "",
+        supportChannels: v.contacts?.supportChannels ?? "",
+      },
+      notes: v.notes ?? "",
+    } as any;
+  }
+
   async ngOnInit() {
     await this.loadEnrollment();
   }
@@ -133,7 +187,11 @@ export class EnrollmentComponent implements OnInit {
       this.form.get("organization")?.patchValue(payload.organization);
     }
     if (payload.compliance) {
-      this.form.get("compliance")?.patchValue(payload.compliance);
+      const compliance: any = { ...payload.compliance };
+      if (Array.isArray(compliance.documents)) {
+        compliance.documents = compliance.documents.join("\n");
+      }
+      this.form.get("compliance")?.patchValue(compliance);
     }
     if (payload.operations) {
       this.form.get("operations")?.patchValue(payload.operations);
@@ -161,15 +219,18 @@ export class EnrollmentComponent implements OnInit {
   async saveDraft() {
     this.saving.set(true);
     try {
-      const payload = this.form.value;
+      const payload = this.buildPayload();
       const next = await firstValueFrom(
         this.cribs.saveEnrollment({
+          // Backend expects: currentStep, payload, contact: { name,email,phone }
           currentStep: this.currentStep().key,
           payload,
-          contactName: payload.contacts?.contactName ?? "",
-          contactEmail: payload.contacts?.contactEmail ?? "",
-          contactPhone: payload.contacts?.contactPhone ?? "",
-        })
+          contact: {
+            name: payload.contacts?.contactName ?? "",
+            email: payload.contacts?.contactEmail ?? "",
+            phone: payload.contacts?.contactPhone ?? "",
+          } as any,
+        } as any)
       );
       this.enrollment = next;
     } finally {
@@ -183,12 +244,16 @@ export class EnrollmentComponent implements OnInit {
     }
     if (!this.enrollment) return;
     this.submission.set("saving");
+    this.submissionError.set(null);
     try {
       await this.saveDraft();
       await firstValueFrom(this.cribs.submitEnrollment(this.enrollment!.id));
       this.submission.set("submitted");
     } catch (error) {
       console.error("submit failed", error);
+      const anyErr: any = error as any;
+      const message = anyErr?.error?.message || anyErr?.message || "Submission failed. Fix form and try again.";
+      this.submissionError.set(String(message));
       this.submission.set("error");
     }
   }

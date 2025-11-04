@@ -25,7 +25,7 @@ func registerAdminRoutes(app *fiber.App, deps protectedDeps) {
 	group := app.Group("/v1/admin/cribs")
 
 	group.Get("/enrollments", func(c *fiber.Ctx) error {
-		if err := auth.RequireRoles(c, "admin", "superadmin", "cribs-admin"); err != nil {
+		if err := auth.RequireRoles(c, "admin", "superadmin", "platform.admin", "platform.superadmin", "cribs-admin", "cribs.admin"); err != nil {
 			return err
 		}
 		status := strings.TrimSpace(c.Query("status", EnrollmentStatusSubmitted))
@@ -59,7 +59,7 @@ func registerAdminRoutes(app *fiber.App, deps protectedDeps) {
 	})
 
 	group.Post("/enrollments/:id/approve", func(c *fiber.Ctx) error {
-		if err := auth.RequireRoles(c, "admin", "superadmin", "cribs-admin"); err != nil {
+		if err := auth.RequireRoles(c, "admin", "superadmin", "platform.admin", "platform.superadmin", "cribs-admin", "cribs.admin"); err != nil {
 			return err
 		}
 		admin := auth.UserFromCtx(c)
@@ -140,7 +140,7 @@ func registerAdminRoutes(app *fiber.App, deps protectedDeps) {
 	})
 
 	group.Post("/enrollments/:id/reject", func(c *fiber.Ctx) error {
-		if err := auth.RequireRoles(c, "admin", "superadmin", "cribs-admin"); err != nil {
+		if err := auth.RequireRoles(c, "admin", "superadmin", "platform.admin", "platform.superadmin", "cribs-admin", "cribs.admin"); err != nil {
 			return err
 		}
 		admin := auth.UserFromCtx(c)
@@ -188,7 +188,7 @@ func registerAdminRoutes(app *fiber.App, deps protectedDeps) {
 	})
 
 	group.Get("/properties", func(c *fiber.Ctx) error {
-		if err := auth.RequireRoles(c, "admin", "superadmin", "cribs-admin"); err != nil {
+		if err := auth.RequireRoles(c, "admin", "superadmin", "platform.admin", "platform.superadmin", "cribs-admin", "cribs.admin"); err != nil {
 			return err
 		}
 		status := strings.TrimSpace(c.Query("status", PropertyStatusPending))
@@ -221,7 +221,7 @@ func registerAdminRoutes(app *fiber.App, deps protectedDeps) {
 	})
 
 	group.Post("/properties/:id/approve", func(c *fiber.Ctx) error {
-		if err := auth.RequireRoles(c, "admin", "superadmin", "cribs-admin"); err != nil {
+		if err := auth.RequireRoles(c, "admin", "superadmin", "platform.admin", "platform.superadmin", "cribs-admin", "cribs.admin"); err != nil {
 			return err
 		}
 		admin := auth.UserFromCtx(c)
@@ -274,7 +274,7 @@ func registerAdminRoutes(app *fiber.App, deps protectedDeps) {
 	})
 
 	group.Post("/properties/:id/reject", func(c *fiber.Ctx) error {
-		if err := auth.RequireRoles(c, "admin", "superadmin", "cribs-admin"); err != nil {
+		if err := auth.RequireRoles(c, "admin", "superadmin", "platform.admin", "platform.superadmin", "cribs-admin", "cribs.admin"); err != nil {
 			return err
 		}
 		admin := auth.UserFromCtx(c)

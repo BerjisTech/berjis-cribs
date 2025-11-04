@@ -1,6 +1,6 @@
-import { DatePipe, CurrencyPipe, NgFor, NgIf } from "@angular/common";
+import { DatePipe, CurrencyPipe, NgFor, NgIf, TitleCasePipe } from "@angular/common";
 import { Component, OnDestroy, OnInit, computed, inject, signal } from "@angular/core";
-import { ActivatedRoute, RouterLink } from "@angular/router";
+import { ActivatedRoute } from "@angular/router";
 import { Subject, firstValueFrom, takeUntil } from "rxjs";
 import { CribsService } from "../../core/cribs.service";
 import { TenantUnitDetail } from "../../shared/models";
@@ -8,7 +8,7 @@ import { TenantUnitDetail } from "../../shared/models";
 @Component({
   selector: "app-tenant-crib",
   standalone: true,
-  imports: [NgIf, NgFor, RouterLink, DatePipe, CurrencyPipe],
+  imports: [NgIf, NgFor, DatePipe, CurrencyPipe, TitleCasePipe],
   templateUrl: "./tenant-crib.component.html",
   styleUrl: "./tenant-crib.component.css",
 })

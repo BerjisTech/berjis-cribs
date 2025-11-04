@@ -30,12 +30,12 @@ func (o Options) httpClient() *http.Client {
 func New(opts Options) *fiber.App {
 	app := fiber.New()
 
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     opts.Config.AllowedOrigins,
-		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Authorization,Content-Type,Accept,X-User-UUID",
-		AllowCredentials: true,
-	}))
+    app.Use(cors.New(cors.Config{
+        AllowOrigins:     opts.Config.AllowedOrigins,
+        AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+        AllowHeaders:     "Authorization,Content-Type,Accept,X-User-UUID,X-User-Roles",
+        AllowCredentials: true,
+    }))
 
 	// Health
 	app.Get("/v1/health", func(c *fiber.Ctx) error {

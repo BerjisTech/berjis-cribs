@@ -27,6 +27,8 @@ export class SessionService {
     loading: false,
   });
 
+  private inflight: Promise<boolean> | null = null;
+
   readonly user = computed(() => this.state().user);
   readonly roles = computed(() => this.state().roles);
   readonly cribsRoles = computed(() => this.state().cribsRoles);
@@ -43,29 +45,23 @@ export class SessionService {
   readonly canAccessAdmin = computed(() => this.isPlatformAdmin() || this.isCribsAdmin());
 
   async ensure(): Promise<boolean> {
-    if (this.state().loading) {
-      return !!this.state().user;
-    }
+    if (this.inflight) return this.inflight;
     this.state.update((s) => ({ ...s, loading: true }));
-    try {
+    this.inflight = (async () => {
       let verify = await firstValueFrom(
         this.http.get<VerifyResponse>(environment.coreApi + "/v1/auth/verify", { withCredentials: true })
       );
       if (!verify?.data?.valid) {
-        await this.refreshAccessToken().catch((error) => {
-          console.warn("access token refresh failed", error);
-        });
+        await firstValueFrom(
+          this.http.post(environment.coreApi + "/v1/auth/refresh", {}, { withCredentials: true })
+        );
         verify = await firstValueFrom(
           this.http.get<VerifyResponse>(environment.coreApi + "/v1/auth/verify", { withCredentials: true })
         );
-        if (!verify?.data?.valid) {
-          this.state.update((s) => ({ ...s, user: null, roles: [], cribsRoles: [], loading: false }));
-          return false;
-        }
-      } else if (typeof window !== "undefined" && !window.sessionStorage.getItem("berjis.accessToken")) {
-        await this.refreshAccessToken().catch((error) => {
-          console.warn("failed to seed access token", error);
-        });
+      }
+      if (!verify?.data?.valid) {
+        this.state.update((s) => ({ ...s, user: null, roles: [], cribsRoles: [], loading: false }));
+        return false;
       }
       const [profileRes, rolesRes, cribsRes] = await Promise.all([
         firstValueFrom(
@@ -86,17 +82,16 @@ export class SessionService {
         loading: false,
       }));
       return true;
-    } catch (error) {
-      console.error("session ensure failed", error);
+    })().catch((_err) => {
       this.state.update((s) => ({ ...s, user: null, roles: [], cribsRoles: [], loading: false }));
       return false;
-    }
+    }).finally(() => {
+      this.inflight = null;
+    });
+    return this.inflight;
   }
 
   signOutLocal() {
-    if (typeof window !== "undefined") {
-      window.sessionStorage.removeItem("berjis.accessToken");
-    }
     this.state.update((s) => ({ ...s, user: null, roles: [], cribsRoles: [] }));
   }
 
@@ -128,22 +123,5 @@ export class SessionService {
     return this.canManageLandlord();
   }
 
-  private async refreshAccessToken(): Promise<string | null> {
-    const res = await firstValueFrom(
-      this.http.post<{ success: boolean; data?: { access?: string } }>(
-        environment.coreApi + "/v1/auth/refresh",
-        {},
-        { withCredentials: true },
-      ),
-    );
-    const token = res?.data?.access ?? null;
-    if (typeof window !== "undefined") {
-      if (token) {
-        window.sessionStorage.setItem("berjis.accessToken", token);
-      } else {
-        window.sessionStorage.removeItem("berjis.accessToken");
-      }
-    }
-    return token;
-  }
+  // No front-end managed tokens in unified auth; cookie session + X-User-UUID is used.
 }
