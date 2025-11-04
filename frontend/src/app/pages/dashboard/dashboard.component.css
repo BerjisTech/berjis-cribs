@@ -4,8 +4,8 @@
 
 .summary-card {
   border-radius: 22px;
-  border: 1px solid rgba(30, 64, 175, 0.45);
-  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid var(--cribs-border);
+  background: var(--cribs-surface);
   padding: 18px 20px;
   display: flex;
   flex-direction: column;
@@ -22,7 +22,7 @@
 .summary-value {
   font-size: 1.3rem;
   font-weight: 600;
-  color: #f8fafc;
+  color: var(--cribs-text);
 }
 
 .summary-meta {
@@ -58,13 +58,13 @@
 
 .panel {
   border-radius: 28px;
-  border: 1px solid rgba(30, 64, 175, 0.4);
-  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid var(--cribs-border);
+  background: var(--cribs-surface);
   padding: 28px;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  box-shadow: 0 40px 80px -60px rgba(15, 23, 42, 0.9);
+  box-shadow: 0 40px 80px -60px rgba(15, 23, 42, 0.18);
 }
 
 .panel-header {
@@ -77,7 +77,7 @@
 .panel-title {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #f8fafc;
+  color: var(--cribs-text);
 }
 
 .panel-subtitle {
@@ -142,8 +142,8 @@
 
 .unit-card {
   border-radius: 22px;
-  border: 1px solid rgba(30, 64, 175, 0.35);
-  background: rgba(2, 6, 23, 0.6);
+  border: 1px solid var(--cribs-border);
+  background: var(--cribs-surface);
   padding: 22px;
   display: flex;
   flex-direction: column;
@@ -166,7 +166,7 @@
 .unit-title {
   font-size: 1.15rem;
   font-weight: 600;
-  color: #f8fafc;
+  color: var(--cribs-text);
 }
 
 .unit-meta {
@@ -191,7 +191,7 @@
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 14px;
   font-size: 0.85rem;
-  color: rgba(226, 232, 240, 0.9);
+  color: rgba(71, 85, 105, 0.9);
 }
 
 .unit-stats dt {
@@ -226,8 +226,8 @@
   gap: 16px;
   padding: 16px 18px;
   border-radius: 18px;
-  border: 1px solid rgba(30, 64, 175, 0.35);
-  background: rgba(2, 6, 23, 0.6);
+  border: 1px solid var(--cribs-border);
+  background: var(--cribs-surface);
 }
 
 .portfolio-link {

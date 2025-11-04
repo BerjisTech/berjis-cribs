@@ -54,7 +54,11 @@
         </div>
 
         <div class="table-wrapper" *ngIf="unit.payments && unit.payments.length > 0; else noPayments">
-          <h3 class="table-title">Recent receipts</h3>
+          <div class="flex items-center justify-between">
+            <h3 class="table-title">Recent payments</h3>
+            <button type="button" class="pill border px-3 py-1 text-xs"
+              (click)="downloadPaymentsCsv(unit.payments)">Download CSV</button>
+          </div>
           <table>
             <thead>
               <tr>
@@ -69,7 +73,8 @@
                 <td>{{ payment.paidOn | date:'mediumDate' }}</td>
                 <td>{{ payment.amount | currency:'KES':'symbol-narrow':'1.0-0' }}</td>
                 <td class="status-cell">
-                  <span [class]="payment.status === 'paid' ? 'badge-paid' : 'badge-pending'">{{ payment.status | titlecase }}</span>
+                  <span [class]="payment.status === 'paid' ? 'badge-paid' : 'badge-pending'">{{ payment.status |
+                    titlecase }}</span>
                 </td>
                 <td>{{ payment.method || '—' }}</td>
               </tr>
@@ -82,6 +87,38 @@
             <p>No receipts yet. Once payments post, they will render here.</p>
           </div>
         </ng-template>
+
+        <div class="table-wrapper mt-6">
+          <h3 class="table-title">Receipts</h3>
+          <div class="flex justify-end mb-2"><button type="button" class="pill border px-3 py-1 text-xs"
+              (click)="downloadReceiptsCsv()">Download CSV</button></div>
+          <div *ngIf="leaseReceipts().length === 0" class="panel-empty">
+            <span class="text-2xl">🧾</span>
+            <p>No receipts yet.</p>
+          </div>
+          <table *ngIf="leaseReceipts().length > 0">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Method</th>
+                <th>Receipt No</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let r of leaseReceipts()">
+                <td>{{ (r.paidOn || r.paid_on) | date:'mediumDate' }}</td>
+                <td>{{ r.amount | currency:'KES':'symbol-narrow':'1.0-0' }}</td>
+                <td>{{ r.method || '-' }}</td>
+                <td>
+                  <a *ngIf="(r.receiptNo || r.receipt_no) as rno" [href]="'/v1/tenant/receipts/' + rno + '.pdf'"
+                    target="_blank" class="text-blue-600">{{ rno }}</a>
+                  <span *ngIf="!(r.receiptNo || r.receipt_no)">-</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </article>
 
       <aside class="panel">
@@ -119,7 +156,8 @@
               <span class="maintenance-status">{{ ticket.status | titlecase }}</span>
             </div>
             <p class="text-xs text-slate-400">Opened {{ ticket.openedAt | date:'medium' }}</p>
-            <p class="text-xs text-slate-500" *ngIf="ticket.updatedAt">Updated {{ ticket.updatedAt | date:'medium' }}</p>
+            <p class="text-xs text-slate-500" *ngIf="ticket.updatedAt">Updated {{ ticket.updatedAt | date:'medium' }}
+            </p>
           </article>
         </div>
         <ng-template #noMaintenance>
@@ -151,6 +189,16 @@
           <figcaption *ngIf="media.caption">{{ media.caption }}</figcaption>
         </figure>
       </div>
+    </section>
+
+    <section class="panel">
+      <header class="panel-header">
+        <div>
+          <h2 class="panel-title">Property occupancy map</h2>
+          <p class="panel-subtitle">Visual status of doors in this property</p>
+        </div>
+      </header>
+      <app-property-unit-map [mode]="'floor'" [columns]="6" [items]="propertyUnits()"></app-property-unit-map>
     </section>
   </ng-container>
 </section>

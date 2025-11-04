@@ -179,4 +179,56 @@ export class CribsService {
         }),
       );
   }
+
+  // Generate units for a property based on a numbering scheme
+  generateUnits(propertyId: string, input: {
+    addressType: 'simple' | 'block' | 'floor' | 'hybrid' | 'standalone',
+    totalUnits?: number,
+    blocks?: string[],
+    phases?: string[],
+    floors?: number,
+    includeGround?: boolean,
+    unitsPerFloor?: number,
+    unitType?: string,
+    defaultStatus?: string,
+  }) {
+    return this.http.post<{ success: boolean }>(`${this.base}/v1/landlord/properties/${propertyId}/units/generate`, input, { withCredentials: true });
+  }
+
+  // Public occupancy map for a property
+  getPublicUnitStatus(propertyId: string): Observable<Array<{ id: string; doorNumber: string; status: string; addressType: string; block?: string; phase?: string; floor?: number }>> {
+    return this.http
+      .get<{ success: boolean; data: any[] }>(`${this.base}/v1/public/properties/${propertyId}/units/status`)
+      .pipe(map((res) => res.data ?? []));
+  }
+
+  // Landlord leases
+  listLeases() {
+    return this.http.get<{ success: boolean; data: any[] }>(`${this.base}/v1/landlord/leases`, { withCredentials: true }).pipe(map(r => r.data || []));
+  }
+  createLease(input: { unitId: string; tenantUuid: string; type: string; startDate: string; endDate?: string; rate: number; frequency: string; deposit?: number; status?: string }) {
+    return this.http.post<{ success: boolean; data: { id: string } }>(`${this.base}/v1/landlord/leases`, input, { withCredentials: true }).pipe(map(r => r.data));
+  }
+  updateLease(id: string, input: { status?: string; endDate?: string }) {
+    return this.http.put<{ success: boolean }>(`${this.base}/v1/landlord/leases/${id}`, input, { withCredentials: true });
+  }
+  addPayment(leaseId: string, input: { amount: number; method?: string; reference?: string; paidOn?: string }) {
+    return this.http.post<{ success: boolean; data: { paymentId: string; receiptNo: string } }>(`${this.base}/v1/landlord/leases/${leaseId}/payments`, input, { withCredentials: true }).pipe(map(r => r.data));
+  }
+  getLeasePayments(leaseId: string) {
+    return this.http.get<{ success: boolean; data: any[] }>(`${this.base}/v1/landlord/leases/${leaseId}/payments`, { withCredentials: true }).pipe(map(r => r.data || []));
+  }
+  getTenantLease(id: string) {
+    return this.http.get<{ success: boolean; data: { lease: any; payments: any[] } }>(`${this.base}/v1/tenant/leases/${id}`, { withCredentials: true }).pipe(map(r => r.data));
+  }
+
+  // Core API messaging stub (composer)
+  sendCoreMessage(input: { toUuid: string; subject: string; body: string }) {
+    // Post to Core API stub; ignore errors for now (stub)
+    return this.http
+      .post(`${environment.coreApi}/v1/messages`, input, { withCredentials: true })
+      .pipe(
+        catchError(() => of({ success: false }))
+      );
+  }
 }

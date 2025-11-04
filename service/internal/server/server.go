@@ -52,7 +52,8 @@ func New(opts Options) *fiber.App {
 		Config:     opts.Config,
 		HTTPClient: opts.httpClient(),
 	}
-	registerPublicRoutes(app, publicDeps)
+    registerPublicRoutes(app, publicDeps)
+    registerPublicUnitStatusRoutes(app, publicDeps)
 
     app.Use(auth.Middleware(auth.Options{HS256Secret: opts.Config.AuthHS256Secret, Env: opts.Config.Env}))
 
@@ -68,6 +69,8 @@ func New(opts Options) *fiber.App {
 	registerLandlordRoutes(app, protected)
 	registerPropertyRoutes(app, protected)
 	registerTenantRoutes(app, protected)
+	registerLeaseRoutes(app, protected)
+    registerReceiptRoutes(app, protected)
 	registerAdminRoutes(app, protected)
 	registerSupportRoutes(app, protected)
 

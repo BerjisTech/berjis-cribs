@@ -1,30 +1,41 @@
+@import "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined";
 @import 'tailwindcss';
 
 :root {
-  --cribs-bg: #0f172a;
-  --cribs-surface: #1e293b;
-  --cribs-accent: #1d4ed8;
+  /* Light-first tokens */
+  --cribs-bg: #f8fafc; /* slate-50 */
+  --cribs-surface: #ffffff;
+  --cribs-text: #0f172a; /* slate-900 */
+  --cribs-border: #e2e8f0; /* slate-200 */
+  --cribs-accent: #1d4ed8; /* blue-700 */
   --cribs-accent-gold: #d4af37;
+}
+
+.dark {
+  --cribs-bg: #0f172a; /* slate-900 */
+  --cribs-surface: #0b1220; /* deep slate */
+  --cribs-text: #f8fafc;
+  --cribs-border: rgba(255,255,255,0.08);
 }
 
 body {
   background-color: var(--cribs-bg);
-  color: #f8fafc;
+  color: var(--cribs-text);
   margin: 0;
   min-height: 100vh;
 }
 
-a {
-  color: inherit;
-}
+a { color: inherit; }
 
-.shadow-glow {
-  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.12), 0 30px 60px -20px rgba(15, 23, 42, 0.65);
-}
+.shadow-glow { box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.12), 0 30px 60px -20px rgba(15, 23, 42, 0.25); }
+.dark .shadow-glow { box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.12), 0 30px 60px -20px rgba(15, 23, 42, 0.65); }
 
 .glass-panel {
-  background: linear-gradient(145deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.85));
+  background: rgba(255,255,255,0.75);
   backdrop-filter: blur(18px);
+}
+.dark .glass-panel {
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.85));
 }
 
 .scrollbar::-webkit-scrollbar {
@@ -46,8 +57,6 @@ a {
 
 .bg-accent-soft { background-color: rgba(37, 99, 235, 0.25); }
 
-@import "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined";
-@import 'tailwindcss';
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
@@ -65,3 +74,12 @@ a { @apply text-blue-400 hover:text-blue-500 underline-offset-4 decoration-blue-
 .bg-app-gradient-animated { animation: gradient-pan 14s ease-in-out infinite; }
 .shadow-brand { box-shadow: 0 18px 48px var(--color-shadow-light); }
 .dark .shadow-brand { box-shadow: 0 28px 72px var(--color-shadow-dark); }
+
+/* Material Symbols baseline */
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}

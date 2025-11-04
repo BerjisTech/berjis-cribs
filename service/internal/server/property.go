@@ -51,11 +51,37 @@ type unitInput struct {
 }
 
 type unitsPayload struct {
-	Units []unitInput `json:"units"`
+    Units []unitInput `json:"units"`
+}
+
+// Unit generation input for bulk creation from a structured scheme
+type unitGenerationInput struct {
+    // addressType: simple | block | floor | hybrid | standalone
+    AddressType   string   `json:"addressType"`
+    // totalUnits: used for simple/standalone
+    TotalUnits    int      `json:"totalUnits"`
+    // blocks to generate (for block/hybrid)
+    Blocks        []string `json:"blocks"`
+    // phases optional for hybrid
+    Phases        []string `json:"phases"`
+    // floors to generate (for floor/hybrid)
+    Floors        int      `json:"floors"`
+    // whether to include ground level labelled 'G'
+    IncludeGround bool     `json:"includeGround"`
+    // number of units per floor (floor/hybrid)
+    UnitsPerFloor int      `json:"unitsPerFloor"`
+    // optional unit type label to set
+    UnitType      string   `json:"unitType"`
+    // default status (available/draft/maintenance/etc.)
+    DefaultStatus string   `json:"defaultStatus"`
+    // optional per-floor counts (index 0 is ground when IncludeGround=true, otherwise floor 1)
+    PerFloorCounts []int                `json:"perFloorCounts"`
+    // optional per-block per-floor counts map
+    PerBlockPerFloor map[string][]int   `json:"perBlockPerFloor"`
 }
 
 func registerPropertyRoutes(app *fiber.App, deps protectedDeps) {
-	group := app.Group("/v1/landlord")
+    group := app.Group("/v1/landlord")
 
 	group.Get("/properties", func(c *fiber.Ctx) error {
 		user := auth.UserFromCtx(c)
@@ -174,6 +200,73 @@ func registerPropertyRoutes(app *fiber.App, deps protectedDeps) {
 
 		return c.JSON(fiber.Map{"success": true, "data": prop})
 	})
+
+    // Generate units for a property based on a numbering scheme.
+    group.Post("/properties/:id/units/generate", func(c *fiber.Ctx) error {
+        user := auth.UserFromCtx(c)
+        propertyID := c.Params("id")
+        if !isUUID(propertyID) {
+            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "invalid property id"})
+        }
+        landlord, err := landlordForUser(deps.db(), user.ID)
+        if err != nil {
+            if errors.Is(err, errLandlordNotFound) {
+                return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"success": false, "message": "landlord profile required"})
+            }
+            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "db error"})
+        }
+
+        // Ensure property belongs to landlord
+        var exists bool
+        if err := deps.db().Get(&exists, `SELECT EXISTS(SELECT 1 FROM properties WHERE id=$1 AND landlord_id=$2)`, propertyID, landlord.ID); err != nil || !exists {
+            return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"success": false, "message": "property not found"})
+        }
+
+        var body unitGenerationInput
+        if err := c.BodyParser(&body); err != nil {
+            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "invalid payload"})
+        }
+        // reasonable defaults
+        if body.DefaultStatus == "" { body.DefaultStatus = "available" }
+        if body.UnitType == "" { body.UnitType = "apartment" }
+
+        units := generateUnits(body)
+        if len(units) == 0 {
+            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "no units generated"})
+        }
+
+        tx, err := deps.db().Beginx()
+        if err != nil {
+            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "transaction error"})
+        }
+        defer tx.Rollback()
+
+        // insert generated units
+        for _, u := range units {
+            meta, price, _ := serializeUnitPayloads(u)
+            _, err := tx.Exec(`INSERT INTO property_units
+                (id, property_id, address_type, structure_label, block, phase, floor, door_number, display_name, unit_type, status, maintenance_note, metadata_json, pricing_json)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                ON CONFLICT (id) DO UPDATE SET
+                    address_type=EXCLUDED.address_type,
+                    structure_label=EXCLUDED.structure_label,
+                    block=EXCLUDED.block, phase=EXCLUDED.phase, floor=EXCLUDED.floor,
+                    door_number=EXCLUDED.door_number, display_name=EXCLUDED.display_name,
+                    unit_type=EXCLUDED.unit_type, status=EXCLUDED.status,
+                    maintenance_note=EXCLUDED.maintenance_note,
+                    metadata_json=EXCLUDED.metadata_json, pricing_json=EXCLUDED.pricing_json`,
+                uuid.New().String(), propertyID, u.AddressType, u.Structure, u.Block, u.Phase, nullableInt(u.Floor), u.DoorNumber, u.DisplayName, u.UnitType, defaultUnitStatus(u.Status), u.Maintenance, meta, price,
+            )
+            if err != nil {
+                return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "insert failed"})
+            }
+        }
+
+        if err := tx.Commit(); err != nil {
+            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "commit failed"})
+        }
+        return c.JSON(fiber.Map{"success": true})
+    })
 
 	group.Put("/properties/:id", func(c *fiber.Ctx) error {
 		user := auth.UserFromCtx(c)
@@ -695,6 +788,151 @@ func defaultUnitStatus(status string) string {
 	return status
 }
 
+// generateUnits builds unitInput slices for the given generation input.
+func generateUnits(in unitGenerationInput) []unitInput {
+    out := []unitInput{}
+    at := strings.ToLower(strings.TrimSpace(in.AddressType))
+    switch at {
+    case "standalone":
+        out = append(out, unitInput{AddressType: "standalone", DoorNumber: "1", DisplayName: "Unit 1", UnitType: in.UnitType, Status: in.DefaultStatus})
+    case "simple":
+        n := in.TotalUnits
+        if n <= 0 { n = 1 }
+        for i := 1; i <= n; i++ {
+            out = append(out, unitInput{AddressType: "simple", DoorNumber: fmt.Sprintf("%d", i), DisplayName: fmt.Sprintf("Unit %d", i), UnitType: in.UnitType, Status: in.DefaultStatus})
+        }
+    case "block":
+        if len(in.Blocks) == 0 { in.Blocks = []string{"A"} }
+        per := in.TotalUnits
+        if per <= 0 { per = 4 }
+        for _, b := range in.Blocks {
+            b = strings.TrimSpace(b)
+            for i := 1; i <= per; i++ {
+                out = append(out, unitInput{AddressType: "block", Block: b, DoorNumber: fmt.Sprintf("%s%d", b, i), DisplayName: fmt.Sprintf("%s%d", b, i), UnitType: in.UnitType, Status: in.DefaultStatus})
+            }
+        }
+    case "floor":
+        floors := in.Floors
+        if floors <= 0 { floors = 4 }
+        // Determine per-floor counts
+        counts := in.PerFloorCounts
+        if len(counts) == 0 {
+            per := in.UnitsPerFloor
+            if per <= 0 { per = 4 }
+            if in.IncludeGround {
+                counts = append(counts, per) // index 0 -> ground
+            }
+            for i := 0; i < floors; i++ { counts = append(counts, per) }
+        } else {
+            // If provided and doesn't include ground while IncludeGround=true, prepend ground with default per
+            if in.IncludeGround && len(counts) == floors { counts = append([]int{in.UnitsPerFloor}, counts...) }
+        }
+        // Build ground then floors using counts
+        idx := 0
+        if in.IncludeGround {
+            per := counts[idx]
+            if per <= 0 { per = 1 }
+            for u := 1; u <= per; u++ {
+                out = append(out, unitInput{AddressType: "floor", Floor: intPtr(0), DoorNumber: fmt.Sprintf("G%d", u), DisplayName: fmt.Sprintf("G%d", u), UnitType: in.UnitType, Status: in.DefaultStatus})
+            }
+            idx++
+        }
+        for f := 1; f <= floors; f++ {
+            per := in.UnitsPerFloor
+            if idx < len(counts) && counts[idx] > 0 { per = counts[idx] }
+            if per <= 0 { per = 1 }
+            for u := 1; u <= per; u++ {
+                out = append(out, unitInput{AddressType: "floor", Floor: intPtr(f), DoorNumber: fmt.Sprintf("%d%02d", f, u), DisplayName: fmt.Sprintf("%d%02d", f, u), UnitType: in.UnitType, Status: in.DefaultStatus})
+            }
+            idx++
+        }
+    case "hybrid":
+        // Blocks + Floors pattern, door like A101, B404, optional phases as prefix (e.g., AB103)
+        if len(in.Blocks) == 0 { in.Blocks = []string{"A"} }
+        floors := in.Floors
+        if floors <= 0 { floors = 4 }
+        per := in.UnitsPerFloor
+        if per <= 0 { per = 4 }
+        for _, b := range in.Blocks {
+            b = strings.TrimSpace(b)
+            if len(in.Phases) == 0 {
+                // no phases, just block+floor
+                // override with per-block counts if provided
+                blockCounts := in.PerBlockPerFloor[strings.ToUpper(b)]
+                // build a counts slice like floor mode
+                counts := []int{}
+                if len(blockCounts) > 0 {
+                    counts = append(counts, blockCounts...)
+                }
+                // fallback to unitsPerFloor
+                if len(counts) == 0 {
+                    if in.IncludeGround { counts = append(counts, per) }
+                    for i := 0; i < floors; i++ { counts = append(counts, per) }
+                }
+                idx := 0
+                if in.IncludeGround {
+                    pg := counts[idx]
+                    if pg <= 0 { pg = per }
+                    for u := 1; u <= pg; u++ {
+                        dn := fmt.Sprintf("%sG%d", b, u)
+                        out = append(out, unitInput{AddressType: "hybrid", Block: b, Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+                    }
+                    idx++
+                }
+                for f := 1; f <= floors; f++ {
+                    pf := per
+                    if idx < len(counts) && counts[idx] > 0 { pf = counts[idx] }
+                    for u := 1; u <= pf; u++ {
+                        dn := fmt.Sprintf("%s%d%02d", b, f, u)
+                        out = append(out, unitInput{AddressType: "hybrid", Block: b, Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+                    }
+                    idx++
+                }
+            } else {
+                for _, p := range in.Phases {
+                    p = strings.TrimSpace(p)
+                    prefix := fmt.Sprintf("%s%s", b, p)
+                    // Per-block counts also apply for phase variants
+                    counts := in.PerBlockPerFloor[strings.ToUpper(b)]
+                    if len(counts) == 0 {
+                        if in.IncludeGround { counts = append(counts, per) }
+                        for i := 0; i < floors; i++ { counts = append(counts, per) }
+                    }
+                    idx := 0
+                    if in.IncludeGround {
+                        pg := counts[idx]
+                        if pg <= 0 { pg = per }
+                        for u := 1; u <= pg; u++ {
+                            dn := fmt.Sprintf("%sG%d", prefix, u)
+                            out = append(out, unitInput{AddressType: "hybrid", Block: b, Phase: p, Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+                        }
+                        idx++
+                    }
+                    for f := 1; f <= floors; f++ {
+                        pf := per
+                        if idx < len(counts) && counts[idx] > 0 { pf = counts[idx] }
+                        for u := 1; u <= pf; u++ {
+                            dn := fmt.Sprintf("%s%d%02d", prefix, f, u)
+                            out = append(out, unitInput{AddressType: "hybrid", Block: b, Phase: p, Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+                        }
+                        idx++
+                    }
+                }
+            }
+        }
+    default:
+        // fallback simple
+        n := in.TotalUnits
+        if n <= 0 { n = 1 }
+        for i := 1; i <= n; i++ {
+            out = append(out, unitInput{AddressType: "simple", DoorNumber: fmt.Sprintf("%d", i), DisplayName: fmt.Sprintf("Unit %d", i), UnitType: in.UnitType, Status: in.DefaultStatus})
+        }
+    }
+    return out
+}
+
+func intPtr(v int) *int { return &v }
+
 func nullableInt(v *int) any {
 	if v == nil {
 		return nil
@@ -703,23 +941,28 @@ func nullableInt(v *int) any {
 }
 
 func ensurePropertySubmissionReadiness(tx *sqlx.Tx, propertyID string) error {
-	var counts struct {
-		Interior int `db:"interior"`
-		Exterior int `db:"exterior"`
-		Units    int `db:"units"`
-	}
-	if err := tx.Get(&counts, `SELECT
+    var counts struct {
+        Interior int `db:"interior"`
+        Exterior int `db:"exterior"`
+        Total    int `db:"total"`
+        Units    int `db:"units"`
+    }
+    if err := tx.Get(&counts, `SELECT
         (SELECT COUNT(*) FROM property_media WHERE property_id=$1 AND kind='interior') AS interior,
         (SELECT COUNT(*) FROM property_media WHERE property_id=$1 AND kind='exterior') AS exterior,
+        (SELECT COUNT(*) FROM property_media WHERE property_id=$1) AS total,
         (SELECT COUNT(*) FROM property_units WHERE property_id=$1) AS units`, propertyID); err != nil {
-		return err
-	}
-	if counts.Interior == 0 || counts.Exterior == 0 {
-		return errors.New("add at least one interior and one exterior photo")
-	}
-	if counts.Units == 0 {
-		return errors.New("add at least one unit")
-	}
+        return err
+    }
+    if counts.Interior == 0 || counts.Exterior == 0 {
+        return errors.New("add at least one interior and one exterior photo")
+    }
+    if counts.Total < 5 {
+        return errors.New("add at least 5 photos to showcase the property")
+    }
+    if counts.Units == 0 {
+        return errors.New("add at least one unit")
+    }
 	var loc struct {
 		Lat sql.NullFloat64 `db:"lat"`
 		Lng sql.NullFloat64 `db:"lng"`

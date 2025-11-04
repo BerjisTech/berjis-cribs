@@ -1,7 +1,8 @@
-<div class="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-  <nav class="sticky top-0 z-40 border-b border-blue-900/40 bg-slate-950/80 backdrop-blur">
+<div class="min-h-screen bg-app-gradient bg-app-gradient-animated text-slate-900 dark:text-slate-100">
+  <nav
+    class="sticky top-0 z-40 border-b border-slate-200 dark:border-blue-900/40 bg-white/80 dark:bg-slate-950/80 backdrop-blur">
     <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-      <a routerLink="/" class="flex items-center gap-3 text-lg font-semibold text-white">
+      <a routerLink="/" class="flex items-center gap-3 text-lg font-semibold text-slate-900 dark:text-white">
         <span
           class="flex h-9 w-9 items-center justify-center rounded-full bg-blue-900 text-[#d4af37] shadow-lg shadow-blue-900/60">BC</span>
         <span>Berjis Cribs</span>
@@ -27,7 +28,8 @@
     <header class="grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div class="space-y-5">
         <p class="text-sm uppercase tracking-[0.35em] text-blue-300/70">Built for Kenya’s real estate spectrum</p>
-        <h1 class="text-4xl font-semibold text-white md:text-5xl">Discover Berjis-certified homes, hotels, and hybrid
+        <h1 class="text-4xl font-semibold text-slate-900 dark:text-white md:text-5xl">Discover Berjis-certified homes,
+          hotels, and hybrid
           stays</h1>
         <p class="max-w-2xl text-base text-slate-300">
           Manage nightly, weekly, and monthly leases from a single platform that handles flexible addressing, bulk
@@ -42,9 +44,10 @@
             maintenance visibility</span>
         </div>
       </div>
-      <aside class="rounded-3xl border border-blue-900/50 bg-slate-900/70 p-6 shadow-2xl shadow-blue-900/30">
-        <h2 class="text-lg font-semibold text-white">Why portfolios choose Cribs</h2>
-        <ul class="mt-4 space-y-3 text-sm text-slate-300">
+      <aside
+        class="rounded-3xl border border-slate-200 dark:border-blue-900/50 bg-white dark:bg-slate-900/70 p-6 shadow-2xl dark:shadow-blue-900/30">
+        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Why portfolios choose Cribs</h2>
+        <ul class="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-300">
           <li class="flex items-start gap-3">
             <span class="mt-0.5 text-[#d4af37]">◆</span>
             <span>Support sequential, block, phase, floor, and hybrid addressing without spreadsheets.</span>
@@ -64,13 +67,13 @@
     <section class="mt-14 grid gap-10 xl:grid-cols-[minmax(0,1fr)_420px]">
       <div class="space-y-6">
         <form (ngSubmit)="onSearch()" [formGroup]="queryForm"
-          class="rounded-3xl border border-blue-900/40 bg-slate-900/80 p-6 shadow-xl shadow-blue-900/30">
+          class="rounded-3xl border border-slate-200 dark:border-blue-900/40 bg-white dark:bg-slate-900/80 p-6 shadow-xl dark:shadow-blue-900/30">
           <div class="flex flex-col gap-4 sm:flex-row sm:items-end">
             <div class="flex-1">
               <label class="text-xs uppercase tracking-[0.3em] text-blue-200/70">Search inventory</label>
               <input formControlName="search" type="text"
                 placeholder="Search estates, neighborhoods, landlord names, unit modes…"
-                class="mt-2 w-full rounded-2xl border border-blue-900/40 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
+                class="mt-2 w-full rounded-2xl border border-slate-200 dark:border-blue-900/40 bg-white dark:bg-slate-950/70 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40" />
             </div>
             <button type="submit"
               class="inline-flex items-center justify-center rounded-2xl bg-blue-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/40 transition hover:bg-blue-800">Search
@@ -80,7 +83,8 @@
             landlord-managed listings. Results update as you type.</p>
         </form>
 
-        <div class="rounded-3xl border border-blue-900/40 bg-slate-900/70 p-6 shadow-2xl shadow-blue-900/30">
+        <div
+          class="rounded-3xl border border-slate-200 dark:border-blue-900/40 bg-white dark:bg-slate-900/70 p-6 shadow-2xl dark:shadow-blue-900/30">
           <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 class="text-xl font-semibold text-white">Available inventory</h2>
@@ -97,14 +101,14 @@
           <div class="mt-6 grid gap-6 md:grid-cols-2">
             <article *ngFor="let property of properties(); trackBy: trackByPropertyId"
               (mouseenter)="focusProperty(property)" (focus)="focusProperty(property)" tabindex="0"
-              class="group flex flex-col gap-4 rounded-2xl border border-slate-800/60 bg-slate-950/70 p-5 shadow transition duration-200 hover:-translate-y-1 hover:border-blue-700/60 hover:shadow-xl hover:shadow-blue-900/40 focus:outline-none focus:ring-2 focus:ring-blue-500/60">
+              class="group flex flex-col gap-4 rounded-2xl border border-slate-200 dark:border-slate-800/60 bg-white dark:bg-slate-950/70 p-5 shadow transition duration-200 hover:-translate-y-1 hover:border-blue-700/60 hover:shadow-xl dark:hover:shadow-blue-900/40 focus:outline-none focus:ring-2 focus:ring-blue-500/60">
               <header class="flex items-start justify-between gap-4">
                 <div>
                   <p class="text-xs uppercase tracking-[0.3em] text-blue-300/70">{{ property.address?.city ||
                     property.address?.county || 'Location pending' }}</p>
                   <h3 class="mt-2 text-lg font-semibold text-white">{{ property.name }}</h3>
                   <p class="mt-2 text-sm leading-relaxed text-slate-300">
-                    {{ property.summary || 'Flexible units for nightly, weekly, and monthly stays with Berjis\ 
+                    {{ property.summary || 'Flexible units for nightly, weekly, and monthly stays with Berjis\
                     oversight.' }}
                   </p>
                 </div>
@@ -143,7 +147,7 @@
               </div>
             </article>
             <div *ngIf="!loading() && properties().length === 0"
-              class="col-span-full flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-800/60 bg-slate-950/80 p-10 text-sm text-slate-400">
+              class="col-span-full flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-800/60 bg-white dark:bg-slate-950/80 p-10 text-sm text-slate-600 dark:text-slate-400">
               <span class="text-2xl">🏙️</span>
               <p>No properties match the current search yet. Try a wider radius or different landlord.</p>
             </div>
@@ -158,15 +162,15 @@
 
       <aside class="flex flex-col gap-4">
         <div
-          class="rounded-3xl border border-blue-900/40 bg-slate-900/70 shadow-2xl shadow-blue-900/40 lg:sticky lg:top-28 lg:max-h-[calc(100vh-7rem)] lg:overflow-hidden">
-          <div class="flex items-center justify-between border-b border-blue-900/40 px-6 py-4">
+          class="rounded-3xl border border-slate-200 dark:border-blue-900/40 bg-white dark:bg-slate-900/70 shadow-2xl dark:shadow-blue-900/40 lg:sticky lg:top-28 lg:max-h-[calc(100vh-7rem)] lg:overflow-hidden">
+          <div class="flex items-center justify-between border-b border-slate-200 dark:border-blue-900/40 px-6 py-4">
             <h2 class="text-lg font-semibold text-white">Live location map</h2>
             <span class="text-xs uppercase tracking-[0.3em] text-[#d4af37]">Mapbox</span>
           </div>
           <div class="relative h-[360px] overflow-hidden rounded-3xl sm:h-[420px] lg:h-[540px]">
             <div id="cribs-map" class="absolute inset-0" data-test="map"></div>
             <div *ngIf="loading()"
-              class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/70 text-slate-300">
+              class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/80 dark:bg-slate-950/70 text-slate-600 dark:text-slate-300">
               <span class="animate-spin text-2xl">⟳</span>
               <p class="text-sm">Loading map data…</p>
             </div>
@@ -177,7 +181,8 @@
               </p>
             </div>
           </div>
-          <footer class="space-y-2 border-t border-blue-900/40 px-6 py-4 text-xs text-slate-400">
+          <footer
+            class="space-y-2 border-t border-slate-200 dark:border-blue-900/40 px-6 py-4 text-xs text-slate-600 dark:text-slate-400">
             <p>Circle colors reflect availability: green (vacant), sky (occupied), amber (maintenance), orange
               (reserved), slate (inactive).</p>
             <p>Click markers or cards to inspect property context and landlord details.</p>

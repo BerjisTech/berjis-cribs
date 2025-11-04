@@ -1,80 +1,101 @@
 <form [formGroup]="form" class="space-y-5">
   <div class="grid gap-4 md:grid-cols-2">
     <label class="flex flex-col gap-2">
-      <span class="text-sm font-medium text-slate-200">Property name</span>
+      <span class="text-sm font-medium text-slate-900 dark:text-slate-200">Property name</span>
       <input formControlName="name" class="input" placeholder="Berjis Suites Riverside" />
     </label>
     <label class="flex flex-col gap-2">
-      <span class="text-sm font-medium text-slate-200">Addressing model</span>
+      <span class="text-sm font-medium text-slate-900 dark:text-slate-200">Addressing model</span>
       <select formControlName="addressType" class="input">
         <option value="simple">Simple sequential</option>
         <option value="block">Block based</option>
         <option value="floor">Floor based</option>
         <option value="hybrid">Hybrid</option>
-      </select>
-    </label>
+      </select><span class="text-xs text-slate-500">Choose how doors are numbered: simple (1,2,3), block (A1,B1), floor
+        (101,102), or hybrid.</span></label>
   </div>
 
   <label class="flex flex-col gap-2">
-    <span class="text-sm font-medium text-slate-200">Highlights</span>
-    <textarea formControlName="description" rows="4" class="input" placeholder="Boutique serviced apartments in Kilimani with solar backup and concierge"></textarea>
+    <span class="text-sm font-medium text-slate-900 dark:text-slate-200">Highlights</span><span
+      class="text-xs text-slate-500">A short pitch tenants will see. Mention unique amenities and neighborhood
+      context.</span>
+    <textarea formControlName="description" rows="4" class="input"
+      placeholder="Boutique serviced apartments in Kilimani with solar backup and concierge"></textarea>
   </label>
 
   <div formGroupName="address" class="grid gap-4 md:grid-cols-3">
     <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-200">City / Town</span>
+      <span class="text-sm text-slate-900 dark:text-slate-200">City / Town</span>
       <input formControlName="city" class="input" placeholder="Nairobi" />
     </label>
     <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-200">Estate</span>
+      <span class="text-sm text-slate-900 dark:text-slate-200">Estate</span>
       <input formControlName="estate" class="input" placeholder="Kilimani" />
     </label>
     <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-200">Street / Road</span>
+      <span class="text-sm text-slate-900 dark:text-slate-200">Street / Road</span>
       <input formControlName="street" class="input" placeholder="Arboretum Drive" />
     </label>
   </div>
 
   <div formGroupName="location" class="grid gap-4 md:grid-cols-2">
     <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-200">Latitude</span>
+      <span class="text-sm text-slate-900 dark:text-slate-200">Latitude</span>
       <input formControlName="lat" type="number" step="0.000001" class="input" placeholder="-1.2921" />
     </label>
     <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-200">Longitude</span>
+      <span class="text-sm text-slate-900 dark:text-slate-200">Longitude</span>
       <input formControlName="lng" type="number" step="0.000001" class="input" placeholder="36.8219" />
     </label>
+  </div>
+  <div class="mt-2">
+    <div id="map-picker" class="h-64 w-full rounded-xl border border-slate-200 dark:border-slate-700"></div>
+    <p class="mt-2 text-xs text-slate-500">Click the map to set location. Drag the marker to fine‑tune. Accurate
+      location improves search and routing.</p>
   </div>
 
   <div formGroupName="details" class="grid gap-4">
     <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-200">Occupancy modes</span>
+      <span class="text-sm text-slate-900 dark:text-slate-200">Occupancy modes</span><span
+        class="text-xs text-slate-500">Supported lease types: nightly (hotels/BnBs), weekly, monthly, or custom.</span>
       <input formControlName="occupancyModes" class="input" placeholder="nightly,weekly,monthly" />
     </label>
     <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-200">Base rates</span>
-      <textarea formControlName="baseRates" rows="2" class="input" placeholder="e.g., Studio KES 6,500 nightly, 1BR KES 120,000 monthly"></textarea>
+      <span class="text-sm text-slate-900 dark:text-slate-200">Base rates</span><span
+        class="text-xs text-slate-500">Provide examples per unit type to seed pricing. You can refine per-unit
+        later.</span>
+      <textarea formControlName="baseRates" rows="2" class="input"
+        placeholder="e.g., Studio KES 6,500 nightly, 1BR KES 120,000 monthly"></textarea>
     </label>
     <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-200">Amenities</span>
-      <textarea formControlName="amenities" rows="2" class="input" placeholder="Fiber internet, generator, housekeeping, pool"></textarea>
+      <span class="text-sm text-slate-900 dark:text-slate-200">Amenities</span><span
+        class="text-xs text-slate-500">Comma-separated list shown on listings. Mention essentials and standouts.</span>
+      <textarea formControlName="amenities" rows="2" class="input"
+        placeholder="Fiber internet, generator, housekeeping, pool"></textarea>
     </label>
+  </div>
+  <div class="mt-2">
+    <div id="map-picker" class="h-64 w-full rounded-xl border border-slate-200 dark:border-slate-700"></div>
+    <p class="mt-2 text-xs text-slate-500">Click the map to set location. Drag the marker to fine‑tune. Accurate
+      location improves search and routing.</p>
   </div>
 
   <div formGroupName="policies" class="grid gap-4 md:grid-cols-2">
     <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-200">Cancellation policy</span>
+      <span class="text-sm text-slate-900 dark:text-slate-200">Cancellation policy</span>
       <textarea formControlName="cancellation" rows="3" class="input"></textarea>
     </label>
     <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-200">House rules</span>
+      <span class="text-sm text-slate-900 dark:text-slate-200">House rules</span>
       <textarea formControlName="houseRules" rows="3" class="input"></textarea>
     </label>
   </div>
 
   <div class="flex items-center justify-between pt-4">
-    <p class="text-xs text-slate-500">Save the draft to continue editing later. Submit from the property workspace to trigger review.</p>
-    <button type="button" class="pill bg-blue-600/80 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-900/40" (click)="create()" [disabled]="saving()">{{ saving() ? 'Creating…' : 'Create property shell' }}</button>
+    <p class="text-xs text-slate-500">Save as draft, then upload at least 5 photos and add units in the workspace before
+      submitting for review.</p><button type="button"
+      class="pill bg-blue-600/80 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-900/40"
+      (click)="create()" [disabled]="saving()">{{ saving() ? 'Saving…' : 'Save draft' }}</button>
   </div>
   <p *ngIf="error()" class="text-sm text-red-300">{{ error() }}</p>
 </form>

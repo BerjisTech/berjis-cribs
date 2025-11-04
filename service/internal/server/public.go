@@ -99,6 +99,40 @@ func registerPublicRoutes(app *fiber.App, deps publicDeps) {
 	})
 }
 
+// Public unit status for a property: minimal fields for occupancy map
+func registerPublicUnitStatusRoutes(app *fiber.App, deps publicDeps) {
+    app.Get("/v1/public/properties/:id/units/status", func(c *fiber.Ctx) error {
+        propertyID := c.Params("id")
+        if !isUUID(propertyID) {
+            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "invalid property id"})
+        }
+        rows, err := deps.DB.Queryx(`SELECT id, door_number, status, address_type, block, phase, floor
+            FROM property_units WHERE property_id=$1 ORDER BY COALESCE(floor,0), door_number`, propertyID)
+        if err != nil {
+            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "db error"})
+        }
+        defer rows.Close()
+        type item struct {
+            ID          string `db:"id" json:"id"`
+            DoorNumber  string `db:"door_number" json:"doorNumber"`
+            Status      string `db:"status" json:"status"`
+            AddressType string `db:"address_type" json:"addressType"`
+            Block       string `db:"block" json:"block,omitempty"`
+            Phase       string `db:"phase" json:"phase,omitempty"`
+            Floor       *int   `db:"floor" json:"floor,omitempty"`
+        }
+        out := []item{}
+        for rows.Next() {
+            var i item
+            if err := rows.StructScan(&i); err != nil {
+                return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "scan error"})
+            }
+            out = append(out, i)
+        }
+        return c.JSON(fiber.Map{"success": true, "data": out})
+    })
+}
+
 func fetchPreviewMedia(deps publicDeps, propertyIDs []string) (map[string][]PublicMedia, error) {
 	if len(propertyIDs) == 0 {
 		return map[string][]PublicMedia{}, nil

@@ -1,7 +1,9 @@
 <div class="space-y-10">
-  <section class="rad-hero border border-blue-900/40 bg-slate-950/80 px-6 py-8 shadow-2xl shadow-blue-900/40">
-    <h1 class="text-3xl font-semibold text-white md:text-4xl">Cribs dashboard</h1>
-    <p class="mt-3 max-w-2xl text-sm text-slate-300">Track your current stay, review upcoming payments, and switch into landlord mode without leaving the Cribs app.</p>
+  <section
+    class="rad-hero border border-slate-200 dark:border-blue-900/40 bg-white dark:bg-slate-950/80 px-6 py-8 shadow-2xl dark:shadow-blue-900/40">
+    <h1 class="text-3xl font-semibold text-slate-900 dark:text-white md:text-4xl">Cribs dashboard</h1>
+    <p class="mt-3 max-w-2xl text-sm text-slate-600 dark:text-slate-300">Track your current stay, review upcoming
+      payments, and switch into landlord mode without leaving the Cribs app.</p>
 
     <div class="mt-6 grid gap-4 md:grid-cols-3">
       <div class="summary-card">
@@ -80,7 +82,8 @@
                 <span *ngIf="unit.address?.block"> · Block {{ unit.address.block }}</span>
               </p>
             </div>
-            <div class="unit-status" [ngClass]="unit.leaseStatus === 'active' ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30' : 'bg-slate-500/15 text-slate-300 border-slate-400/30'">
+            <div class="unit-status"
+              [ngClass]="unit.leaseStatus === 'active' ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30' : 'bg-slate-500/15 text-slate-300 border-slate-400/30'">
               {{ unit.leaseStatus || 'Pending' }}
             </div>
           </div>
@@ -139,7 +142,8 @@
       <ul class="space-y-3" *ngIf="landlordProperties().length > 0">
         <li *ngFor="let property of landlordProperties()" class="portfolio-card">
           <div>
-            <p class="text-xs uppercase tracking-[0.3em] text-blue-300/70">{{ property.address?.city || 'Location pending' }}</p>
+            <p class="text-xs uppercase tracking-[0.3em] text-blue-300/70">{{ property.address?.city || 'Location
+              pending' }}</p>
             <h3 class="mt-1 text-sm font-semibold text-white">{{ property.name }}</h3>
             <p class="mt-1 text-xs text-slate-400">Units: {{ property.units?.length || 0 }}</p>
           </div>

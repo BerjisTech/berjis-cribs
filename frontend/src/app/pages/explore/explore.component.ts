@@ -135,7 +135,9 @@ export class ExploreComponent implements OnInit, OnDestroy {
       if (!this.map) {
         this.map = new mapboxgl.Map({
           container: "cribs-map",
-          style: environment.mapStyle,
+          style: document.documentElement.classList.contains('dark')
+            ? (environment.mapStyle || 'mapbox://styles/mapbox/dark-v11')
+            : 'mapbox://styles/mapbox/streets-v12',
           center: [36.8219, -1.2921],
           zoom: 11,
           cooperativeGestures: true,
