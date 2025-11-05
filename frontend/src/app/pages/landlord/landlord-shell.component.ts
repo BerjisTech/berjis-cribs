@@ -34,10 +34,10 @@ export class LandlordShellComponent implements OnInit {
   private async bootstrap() {
     this.loading.set(true);
     try {
-      const [profile, props] = await Promise.all([
-        firstValueFrom(this.cribs.getLandlordProfile()),
-        firstValueFrom(this.cribs.listProperties()),
-      ]);
+      let profile: LandlordProfile | null = null;
+      try { profile = await firstValueFrom(this.cribs.getLandlordProfile()); } catch { profile = null; }
+      let props: Property[] = [];
+      try { props = await firstValueFrom(this.cribs.listProperties()); } catch { props = []; }
       this.profile.set(profile);
       this.properties.set(props);
     } finally {

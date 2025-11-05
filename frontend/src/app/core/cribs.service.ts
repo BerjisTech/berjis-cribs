@@ -1,5 +1,6 @@
 import { Injectable, inject } from "@angular/core";
-import { HttpClient, HttpParams } from "@angular/common/http";
+import { HttpClient, HttpHeaders, HttpParams } from "@angular/common/http";
+import { SessionService } from './session.service';
 import { Observable, of } from "rxjs";
 import { catchError, map } from "rxjs/operators";
 import { environment } from "../../environments/environment";
@@ -20,6 +21,24 @@ import {
 export class CribsService {
   private http = inject(HttpClient);
   private base = environment.cribsApi;
+  // unified auth: forward user identity to cribs-api via headers (middleware supports X-User-UUID/X-User-Roles)
+  private session = inject(SessionService);
+
+  private authHeaders(): { headers?: HttpHeaders } {
+    try {
+      const user = this.session.user?.();
+      const roles = [
+        ...(this.session.roles?.() ?? []),
+        ...(this.session.cribsRoles?.() ?? []),
+      ].filter(Boolean);
+      let headers = new HttpHeaders();
+      if (user?.uuid) headers = headers.set('X-User-UUID', String(user.uuid));
+      if (roles.length) headers = headers.set('X-User-Roles', Array.from(new Set(roles)).join(','));
+      return { headers };
+    } catch {
+      return {};
+    }
+  }
 
   getPublicProperties(params?: { q?: string; landlordId?: string; limit?: number; offset?: number; bbox?: string }): Observable<PublicProperty[]> {
     let httpParams = new HttpParams();
@@ -37,80 +56,80 @@ export class CribsService {
 
   getEnrollment(): Observable<LandlordEnrollment | null> {
     return this.http
-      .get<{ success: boolean; data: LandlordEnrollment | null }>(`${this.base}/v1/landlord/enrollments/me`, { withCredentials: true })
+      .get<{ success: boolean; data: LandlordEnrollment | null }>(`${this.base}/v1/landlord/enrollments/me`, { withCredentials: true, ...this.authHeaders() })
       .pipe(map((res) => res.data ?? null));
   }
 
   saveEnrollment(payload: Partial<LandlordEnrollment>): Observable<LandlordEnrollment> {
     return this.http
-      .patch<{ success: boolean; data: LandlordEnrollment }>(`${this.base}/v1/landlord/enrollments/me`, payload, { withCredentials: true })
+      .patch<{ success: boolean; data: LandlordEnrollment }>(`${this.base}/v1/landlord/enrollments/me`, payload, { withCredentials: true, ...this.authHeaders() })
       .pipe(map((res) => res.data));
   }
 
   submitEnrollment(id: string) {
-    return this.http.post<{ success: boolean; data: any }>(`${this.base}/v1/landlord/enrollments/${id}/submit`, {}, { withCredentials: true });
+    return this.http.post<{ success: boolean; data: any }>(`${this.base}/v1/landlord/enrollments/${id}/submit`, {}, { withCredentials: true, ...this.authHeaders() });
   }
 
   getLandlordProfile(): Observable<LandlordProfile | null> {
     return this.http
-      .get<{ success: boolean; data: LandlordProfile | null }>(`${this.base}/v1/landlord/profile`, { withCredentials: true })
+      .get<{ success: boolean; data: LandlordProfile | null }>(`${this.base}/v1/landlord/profile`, { withCredentials: true, ...this.authHeaders() })
       .pipe(map((res) => res.data ?? null));
   }
 
   listProperties(): Observable<Property[]> {
     return this.http
-      .get<{ success: boolean; data: Property[] }>(`${this.base}/v1/landlord/properties`, { withCredentials: true })
+      .get<{ success: boolean; data: Property[] }>(`${this.base}/v1/landlord/properties`, { withCredentials: true, ...this.authHeaders() })
       .pipe(map((res) => res.data ?? []));
   }
 
   getProperty(id: string): Observable<Property> {
     return this.http
-      .get<{ success: boolean; data: Property }>(`${this.base}/v1/landlord/properties/${id}`, { withCredentials: true })
+      .get<{ success: boolean; data: Property }>(`${this.base}/v1/landlord/properties/${id}`, { withCredentials: true, ...this.authHeaders() })
       .pipe(map((res) => res.data));
   }
 
   createProperty(input: Partial<Property>): Observable<Property> {
     return this.http
-      .post<{ success: boolean; data: Property }>(`${this.base}/v1/landlord/properties`, input, { withCredentials: true })
+      .post<{ success: boolean; data: Property }>(`${this.base}/v1/landlord/properties`, input, { withCredentials: true, ...this.authHeaders() })
       .pipe(map((res) => res.data));
   }
 
   updateProperty(id: string, input: Partial<Property>): Observable<Property> {
     return this.http
-      .put<{ success: boolean; data: Property }>(`${this.base}/v1/landlord/properties/${id}`, input, { withCredentials: true })
+      .put<{ success: boolean; data: Property }>(`${this.base}/v1/landlord/properties/${id}`, input, { withCredentials: true, ...this.authHeaders() })
       .pipe(map((res) => res.data));
   }
 
   submitProperty(id: string) {
-    return this.http.post<{ success: boolean; data: any }>(`${this.base}/v1/landlord/properties/${id}/submit`, {}, { withCredentials: true });
+    return this.http.post<{ success: boolean; data: any }>(`${this.base}/v1/landlord/properties/${id}/submit`, {}, { withCredentials: true, ...this.authHeaders() });
   }
 
   addMedia(id: string, input: { kind: string; url: string; caption?: string; unitId?: string }): Observable<PropertyMedia> {
     return this.http
-      .post<{ success: boolean; data: PropertyMedia }>(`${this.base}/v1/landlord/properties/${id}/media`, input, { withCredentials: true })
+      .post<{ success: boolean; data: PropertyMedia }>(`${this.base}/v1/landlord/properties/${id}/media`, input, { withCredentials: true, ...this.authHeaders() })
       .pipe(map((res) => res.data));
   }
 
   deleteMedia(propertyId: string, mediaId: string) {
-    return this.http.delete<{ success: boolean }>(`${this.base}/v1/landlord/properties/${propertyId}/media/${mediaId}`, { withCredentials: true });
+    return this.http.delete<{ success: boolean }>(`${this.base}/v1/landlord/properties/${propertyId}/media/${mediaId}`, { withCredentials: true, ...this.authHeaders() });
   }
 
   upsertUnits(propertyId: string, units: Partial<PropertyUnit>[]) {
     return this.http
-      .put<{ success: boolean; data: PropertyUnit[] }>(`${this.base}/v1/landlord/properties/${propertyId}/units`, { units }, { withCredentials: true })
+      .put<{ success: boolean; data: PropertyUnit[] }>(`${this.base}/v1/landlord/properties/${propertyId}/units`, { units }, { withCredentials: true, ...this.authHeaders() })
       .pipe(map((res) => res.data ?? []));
   }
 
   getNotifications(): Observable<NotificationItem[]> {
     return this.http
-      .get<{ success: boolean; data: NotificationItem[] }>(`${this.base}/v1/landlord/notifications`, { withCredentials: true })
+      .get<{ success: boolean; data: NotificationItem[] }>(`${this.base}/v1/landlord/notifications`, { withCredentials: true, ...this.authHeaders() })
       .pipe(map((res) => res.data ?? []));
   }
 
   getAuditTrail(propertyId?: string): Observable<AuditEntry[]> {
     const params = propertyId ? new HttpParams().set("propertyId", propertyId) : undefined;
     return this.http
-      .get<{ success: boolean; data: AuditEntry[] }>(`${this.base}/v1/landlord/audit-trail`, { withCredentials: true, params })
+      .get<{ success: boolean; data: AuditEntry[] }>(`${this.base}/v1/landlord/audit-trail`, { withCredentials: true, params, ...this.authHeaders() })
       .pipe(map((res) => res.data ?? []));
   }
 
@@ -192,13 +211,13 @@ export class CribsService {
     unitType?: string,
     defaultStatus?: string,
   }) {
-    return this.http.post<{ success: boolean }>(`${this.base}/v1/landlord/properties/${propertyId}/units/generate`, input, { withCredentials: true });
+    return this.http.post<{ success: boolean }>(`${this.base}/v1/landlord/properties/${propertyId}/units/generate`, input, { withCredentials: true, ...this.authHeaders() });
   }
 
   // Public occupancy map for a property
   getPublicUnitStatus(propertyId: string): Observable<Array<{ id: string; doorNumber: string; status: string; addressType: string; block?: string; phase?: string; floor?: number }>> {
     return this.http
-      .get<{ success: boolean; data: any[] }>(`${this.base}/v1/public/properties/${propertyId}/units/status`)
+      .get<{ success: boolean; data: any[] }>(`${this.base}/v1/public/properties/${propertyId}/units/status`, this.authHeaders())
       .pipe(map((res) => res.data ?? []));
   }
 

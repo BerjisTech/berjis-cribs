@@ -10,8 +10,8 @@
       <span *ngIf="property()?.location?.lat">• {{ property()?.location?.lat }}, {{ property()?.location?.lng }}</span>
       <span *ngIf="property()?.landlordId">• Landlord ID: {{ property()?.landlordId }}</span>
     </div>
-    <div class="mt-3">
-      <a class="pill border px-3 py-1.5 text-xs" [routerLink]="['/landlord/properties', property()?.id, 'edit']">Continue editing in wizard</a>
+    <div class="mt-3" *ngIf="property()?.id as pid">
+      <a class="pill border px-3 py-1.5 text-xs" [routerLink]="['/landlord/properties', pid, 'edit']">Continue editing in wizard</a>
     </div>
   </header>
 

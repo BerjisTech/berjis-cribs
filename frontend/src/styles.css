@@ -46,9 +46,9 @@ a { color: inherit; }
   border-radius: 9999px;
 }
 
-.rad { border-radius: 14px; }
-.rad-lg { border-radius: 18px; }
-.rad-xl { border-radius: 28px; }
+.rad { border-radius: 14px; margin-top: 8px; }
+.rad-lg { border-radius: 18px; margin-top: 8px; }
+.rad-xl { border-radius: 28px; margin-top: 8px; }
 
 
 .circle { border-radius: 9999px; }
@@ -82,4 +82,8 @@ a { @apply text-blue-400 hover:text-blue-500 underline-offset-4 decoration-blue-
     'wght' 400,
     'GRAD' 0,
     'opsz' 24;
+}
+
+section {
+  margin-top: 8px;
 }

@@ -1,22 +1,23 @@
+<ng-container *ngIf="group as g">
 <!-- Checkboxes -->
-<div class="grid gap-2 md:grid-cols-3" [formGroup]="group">
-  <label class="flex items-center gap-2" *ngIf="group.get('hasBlocks')">
+<div class="grid gap-2 md:grid-cols-3" [formGroup]="g">
+  <label class="flex items-center gap-2" *ngIf="g.get('hasBlocks')">
     <input type="checkbox" formControlName="hasBlocks" />
     <span class="text-xs text-slate-500">Do you have blocks?</span>
   </label>
-  <label class="flex items-center gap-2" *ngIf="group.get('hasPhases') && (val?.hasBlocks)">
+  <label class="flex items-center gap-2" *ngIf="g.get('hasPhases') && (val?.hasBlocks)">
     <input type="checkbox" formControlName="hasPhases" />
     <span class="text-xs text-slate-500">Do the blocks have phases/sides?</span>
   </label>
-  <label class="flex items-center gap-2" *ngIf="group.get('includeGround')">
+  <label class="flex items-center gap-2" *ngIf="g.get('includeGround')">
     <input type="checkbox" formControlName="includeGround" />
     <span class="text-xs text-slate-500">Ground floor is "G"</span>
   </label>
 </div>
 
 <!-- Dropdowns -->
-<div class="grid gap-3 md:grid-cols-3 mt-2" [formGroup]="group">
-  <label class="flex flex-col gap-1" *ngIf="showAddressing && group.get('addressType')">
+<div class="grid gap-3 md:grid-cols-3 mt-2" [formGroup]="g">
+  <label class="flex flex-col gap-1" *ngIf="showAddressing && g.get('addressType')">
     <span class="text-xs text-slate-500">Addressing</span>
     <select formControlName="addressType" class="input bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700">
       <option value="simple">Simple</option>
@@ -26,7 +27,7 @@
       <option value="standalone">Standalone</option>
     </select>
   </label>
-  <label class="flex flex-col gap-1" *ngIf="group.get('blockNaming') && val?.hasBlocks">
+  <label class="flex flex-col gap-1" *ngIf="g.get('blockNaming') && val?.hasBlocks">
     <span class="text-xs text-slate-500">Choose how you label your blocks</span>
     <select formControlName="blockNaming" class="input bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700">
       <option value="letters">Letters (A, B, C.)</option>
@@ -34,7 +35,7 @@
       <option value="custom">Custom prefix</option>
     </select>
   </label>
-  <label class="flex flex-col gap-1" *ngIf="val?.hasBlocks && val?.blockNaming==='numbers' && group.get('blockDigits')">
+  <label class="flex flex-col gap-1" *ngIf="val?.hasBlocks && val?.blockNaming==='numbers' && g.get('blockDigits')">
     <span class="text-xs text-slate-500">Block number digits</span>
     <select formControlName="blockDigits" class="input bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700">
       <option [value]="1">1</option>
@@ -42,14 +43,14 @@
       <option [value]="3">3</option>
     </select>
   </label>
-  <label class="flex flex-col gap-1" *ngIf="val?.hasPhases && group.get('phaseNaming')">
+  <label class="flex flex-col gap-1" *ngIf="val?.hasPhases && g.get('phaseNaming')">
     <span class="text-xs text-slate-500">Choose how you label your blocks' phases</span>
     <select formControlName="phaseNaming" class="input bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700">
       <option value="letters">Letters (A, B)</option>
       <option value="numbers">Numbers (1, 2)</option>
     </select>
   </label>
-  <label class="flex flex-col gap-1" *ngIf="val?.hasPhases && val?.phaseNaming==='numbers' && group.get('phaseDigits')">
+  <label class="flex flex-col gap-1" *ngIf="val?.hasPhases && val?.phaseNaming==='numbers' && g.get('phaseDigits')">
     <span class="text-xs text-slate-500">Phase number digits</span>
     <select formControlName="phaseDigits" class="input bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700">
       <option [value]="1">1</option>
@@ -57,14 +58,14 @@
       <option [value]="3">3</option>
     </select>
   </label>
-  <label class="flex flex-col gap-1" *ngIf="group.get('floorLabelKind')">
+  <label class="flex flex-col gap-1" *ngIf="g.get('floorLabelKind')">
     <span class="text-xs text-slate-500">Choose how you label your floors</span>
     <select formControlName="floorLabelKind" class="input bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700">
       <option value="numeric">Numeric (1, 2, 3)</option>
       <option value="alpha">Alphabetic (A, B, C)</option>
     </select>
   </label>
-  <label class="flex flex-col gap-1" *ngIf="val?.floorLabelKind==='numeric' && group.get('floorDigits')">
+  <label class="flex flex-col gap-1" *ngIf="val?.floorLabelKind==='numeric' && g.get('floorDigits')">
     <span class="text-xs text-slate-500">Floor number digits</span>
     <select formControlName="floorDigits" class="input bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700">
       <option [value]="1">1</option>
@@ -72,14 +73,14 @@
       <option [value]="3">3</option>
     </select>
   </label>
-  <label class="flex flex-col gap-1" *ngIf="group.get('floorDoorKind') && (val?.labelingMode||'floor')==='floor'">
+  <label class="flex flex-col gap-1" *ngIf="g.get('floorDoorKind') && (val?.labelingMode||'floor')==='floor'">
     <span class="text-xs text-slate-500">On each floor, label doors with</span>
     <select formControlName="floorDoorKind" class="input bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700">
       <option value="numeric">Numeric (.01, .02)</option>
       <option value="alpha">Alphabetic (.A, .B)</option>
     </select>
   </label>
-  <label class="flex flex-col gap-1" *ngIf="group.get('doorScheme')">
+  <label class="flex flex-col gap-1" *ngIf="g.get('doorScheme')">
     <span class="text-xs text-slate-500">Door number system</span>
     <select formControlName="doorScheme" class="input bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700">
       <option value="simple_numeric">Simple numeric (1..n across floors)</option>
@@ -88,7 +89,7 @@
       <option value="floor_alpha">Floor-based alphabetic (G A, 1A, 1B..)</option>
     </select>
   </label>
-  <label class="flex flex-col gap-1" *ngIf="(val?.doorScheme==='simple_numeric' || val?.doorScheme==='floor_numeric') && group.get('doorDigits')">
+  <label class="flex flex-col gap-1" *ngIf="(val?.doorScheme==='simple_numeric' || val?.doorScheme==='floor_numeric') && g.get('doorDigits')">
     <span class="text-xs text-slate-500">Door number digits</span>
     <select formControlName="doorDigits" class="input bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700">
       <option [value]="1">1</option>
@@ -96,7 +97,7 @@
       <option [value]="3">3</option>
     </select>
   </label>
-  <label class="flex flex-col gap-1" *ngIf="group.get('groundStyle')">
+  <label class="flex flex-col gap-1" *ngIf="g.get('groundStyle')">
     <span class="text-xs text-slate-500">Ground floor style</span>
     <select formControlName="groundStyle" class="input bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700">
       <option value="g">g1, g2.</option>
@@ -106,40 +107,42 @@
 </div>
 
 <!-- Numbers: blocks → phases → floors → units -->
-<div class="grid gap-3 md:grid-cols-4 mt-2" [formGroup]="group">
-  <label class="flex flex-col gap-1 md:col-span-1" *ngIf="val?.hasBlocks && group.get('blocksCount')">
+<div class="grid gap-3 md:grid-cols-4 mt-2" [formGroup]="g">
+  <label class="flex flex-col gap-1 md:col-span-1" *ngIf="val?.hasBlocks && g.get('blocksCount')">
     <span class="text-xs text-slate-500">How many blocks do you have?</span>
     <input formControlName="blocksCount" type="number" min="1" class="input" />
   </label>
-  <label class="flex flex-col gap-1 md:col-span-1" *ngIf="val?.hasPhases && group.get('phaseSides')">
+  <label class="flex flex-col gap-1 md:col-span-1" *ngIf="val?.hasPhases && g.get('phaseSides')">
     <span class="text-xs text-slate-500">How many phases/sides per block?</span>
     <input formControlName="phaseSides" type="number" min="1" class="input" />
   </label>
-  <label class="flex flex-col gap-1 md:col-span-1" *ngIf="group.get('floors')">
+  <label class="flex flex-col gap-1 md:col-span-1" *ngIf="g.get('floors')">
     <span class="text-xs text-slate-500">How many floors?</span>
     <input formControlName="floors" type="number" min="0" class="input" />
   </label>
-  <label class="flex flex-col gap-1 md:col-span-1" *ngIf="group.get('unitsPerFloor')">
+  <label class="flex flex-col gap-1 md:col-span-1" *ngIf="g.get('unitsPerFloor')">
     <span class="text-xs text-slate-500">How many units per floor?</span>
     <input formControlName="unitsPerFloor" type="number" min="1" class="input" />
   </label>
 </div>
 
 <!-- Overrides -->
-<div class="grid gap-3 md:grid-cols-3 mt-2" [formGroup]="group">
-  <label class="flex flex-col gap-1" *ngIf="val?.hasBlocks && group.get('blockLabels')">
+<div class="grid gap-3 md:grid-cols-3 mt-2" [formGroup]="g">
+  <label class="flex flex-col gap-1" *ngIf="val?.hasBlocks && g.get('blockLabels')">
     <span class="text-xs text-slate-500">Block labels (CSV override)</span>
     <input formControlName="blockLabels" class="input" placeholder="G,H,J,47,48" />
   </label>
-  <label class="flex flex-col gap-1" *ngIf="val?.hasBlocks && group.get('blockNaming')?.value==='custom' && group.get('blockPrefix')">
+  <label class="flex flex-col gap-1" *ngIf="val?.hasBlocks && g.get('blockNaming')?.value==='custom' && g.get('blockPrefix')">
     <span class="text-xs text-slate-500">Custom block prefix</span>
     <input formControlName="blockPrefix" class="input" placeholder="Block" />
   </label>
-  <label class="flex flex-col gap-1" *ngIf="val?.hasPhases && group.get('phasesList')">
+  <label class="flex flex-col gap-1" *ngIf="val?.hasPhases && g.get('phasesList')">
     <span class="text-xs text-slate-500">Phases/Sides (CSV)</span>
     <input formControlName="phasesList" class="input" placeholder="1,2,3,4 or A,B" />
   </label>
 </div>
+<!-- end ngIf group -->
+</ng-container>
 
 <!-- Live preview -->
 <div class="space-y-4 mt-3">
