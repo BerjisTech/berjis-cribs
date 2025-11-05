@@ -8,12 +8,13 @@ import { Property, PropertyMedia, PropertyUnit } from "../../shared/models";
 import { buildMediaPayload, buildPropertyPayload } from "./property-form.utils";
 import { environment } from "../../../environments/environment";
 import { PropertyUnitMapComponent } from "./property-unit-map.component";
+import { NumberingEditorComponent } from './numbering-editor.component';
 import { generatePreview, NumberingConfig } from './numbering-preview.util';
 
 @Component({
   selector: "app-property-workspace",
   standalone: true,
-  imports: [ReactiveFormsModule, NgFor, NgIf, NgClass, PropertyUnitMapComponent],
+  imports: [ReactiveFormsModule, NgFor, NgIf, NgClass, PropertyUnitMapComponent, NumberingEditorComponent],
   templateUrl: "./property-workspace.component.html",
   styleUrl: "./property-workspace.component.css",
 })
@@ -297,6 +298,13 @@ export class PropertyWorkspaceComponent implements OnInit {
       unitsPerFloor: Number(raw.unitsPerFloor) || 0,
       unitType: raw.unitType || 'apartment',
       defaultStatus: raw.defaultStatus || 'available',
+      // Extended numbering fields (server may ignore until supported)
+      doorScheme: raw.doorScheme,
+      floorLabelKind: raw.floorLabelKind,
+      blockDigits: Number((raw as any).blockDigits || 1),
+      phaseDigits: Number((raw as any).phaseDigits || 1),
+      floorDigits: Number((raw as any).floorDigits || 1),
+      doorDigits: Number((raw as any).doorDigits || ((raw as any).floorThreeDigit ? 2 : 1)),
     };
     // Per-floor counts
     const pfc = (raw as any).perFloorCounts?.toString().trim();

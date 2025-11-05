@@ -7,12 +7,12 @@ import { CribsService } from "../../core/cribs.service";
 import { buildPropertyPayload } from "./property-form.utils";
 import { environment } from "../../../environments/environment";
 import * as mapboxgl from 'mapbox-gl';
-import { generatePreview, NumberingConfig } from './numbering-preview.util';
+import { NumberingEditorComponent } from './numbering-editor.component';
 
 @Component({
   selector: "app-property-wizard",
   standalone: true,
-  imports: [ReactiveFormsModule, NgIf, NgFor, NgClass],
+  imports: [ReactiveFormsModule, NgIf, NgFor, NgClass, NumberingEditorComponent],
   templateUrl: "./property-wizard.component.html",
   styleUrl: "./property-wizard.component.css",
 })
@@ -26,8 +26,6 @@ export class PropertyWizardComponent implements OnInit, AfterViewInit {
   readonly step = signal(0);
   // Structured editor state for wizard: per-block per-floor counts
   structuredCountsWizard: number[][] = [];
-  // Preview grid derived from form values
-  previewBlocks: Array<{ label: string; sides?: string[]; floors: Array<{ idx: number; label: string; cells: string[] | string[][] }> }> = [];
   blocksForWizard(): string[] {
     const num = this.form.get('numbering')!.value as any;
     const labelsCsv = (num?.blockLabels || '').toString().trim();
@@ -143,7 +141,6 @@ export class PropertyWizardComponent implements OnInit, AfterViewInit {
     // Recompute preview when relevant fields change
     const num = this.form.get('numbering');
     const addrType = this.form.get('addressType');
-    if (num) { num.valueChanges.subscribe(() => this.renderPreview()); }
     if (addrType) {
       addrType.valueChanges.subscribe((v: any) => {
         const mode = String(v || 'simple');
@@ -154,11 +151,9 @@ export class PropertyWizardComponent implements OnInit, AfterViewInit {
         if ((mode === 'floor' || mode === 'block' || mode === 'hybrid') && cur === 'sequential') {
           this.form.get('numbering.labelingMode')?.setValue('floor', { emitEvent: false } as any);
         }
-        this.renderPreview();
         if (mode === 'simple') this.ensureMap();
       });
     }
-    this.renderPreview();
   }
 
   ngAfterViewInit() {
@@ -258,35 +253,6 @@ export class PropertyWizardComponent implements OnInit, AfterViewInit {
     } catch {}
   }
 
-  private renderPreview() {
-    const raw: any = this.form.getRawValue();
-    const addr: string = raw.addressType || 'simple';
-    const num: any = raw.numbering || {};
-    const cfg: NumberingConfig = {
-      addressType: (addr as any),
-      floors: Math.max(0, Number(num.floors || 0)),
-      includeGround: !!num.includeGround,
-      floorLabelKind: (num.floorLabelKind || 'numeric'),
-      doorScheme: (num.doorScheme || 'floor_numeric'),
-      floorThreeDigit: !!num.floorThreeDigit,
-      groundStyle: (num.groundStyle || 'g'),
-      hasBlocks: !!(num.hasBlocks || addr === 'block' || addr === 'hybrid'),
-      blocksCount: Number(num.blocksCount || 1),
-      blockNaming: (num.blockNaming || 'letters'),
-      blockPrefix: (num.blockPrefix || ''),
-      blockLabelsCsv: (num.blockLabels || ''),
-      hasPhases: !!(num.hasPhases || (num.phasesList || '').toString().trim()),
-      phaseSides: Number(num.phaseSides || 1),
-      phaseNaming: (num.phaseNaming || 'letters'),
-      phasesListCsv: (num.phasesList || ''),
-      blockDigits: Number(num.blockDigits || 1),
-      phaseDigits: Number(num.phaseDigits || 1),
-      floorDigits: Number(num.floorDigits || 1),
-      doorDigits: Number(num.doorDigits || (num.floorThreeDigit ? 2 : 1)),
-    };
-    const unitsPerFloor = Math.max(1, Number(num.unitsPerFloor || 1));
-    this.previewBlocks = generatePreview(cfg, unitsPerFloor);
-  }
 
   async create(saveOnly = false) {
     if (saveOnly) {
@@ -317,7 +283,19 @@ export class PropertyWizardComponent implements OnInit, AfterViewInit {
         const includeGround = !!(num as any).includeGround;
         const unitsPerFloor = Number((num as any).unitsPerFloor) || 1;
         if (floors > 0 && unitsPerFloor > 0) {
-          const input: any = { addressType: addr, floors, includeGround, unitsPerFloor };
+          const input: any = {
+            addressType: addr,
+            floors,
+            includeGround,
+            unitsPerFloor,
+            // Extended numbering fields to align backend with preview (server may ignore until supported)
+            doorScheme: (num as any).doorScheme,
+            floorLabelKind: (num as any).floorLabelKind,
+            blockDigits: Number((num as any).blockDigits || 1),
+            phaseDigits: Number((num as any).phaseDigits || 1),
+            floorDigits: Number((num as any).floorDigits || 1),
+            doorDigits: Number((num as any).doorDigits || ((num as any).floorThreeDigit ? 2 : 1)),
+          };
           if (addr === 'simple') {
             input.totalUnits = floors * unitsPerFloor * (includeGround ? (floors>0?floors:1) : floors);
           }
