@@ -288,11 +288,47 @@ export class PropertyWorkspaceComponent implements OnInit {
   async generateUnits() {
     if (!this.property()) return;
     const raw = this.generateForm.getRawValue();
+    // Derive block/phase labels from editor settings when CSVs are not provided
+    const hasBlocks = !!(raw as any).hasBlocks;
+    const hasPhases = !!(raw as any).hasPhases;
+    const blocksCsv = (raw as any).blockLabelsCsv?.toString().trim();
+    const phasesCsv = (raw as any).phasesListCsv?.toString().trim();
+    const blockNaming = (raw as any).blockNaming || 'letters';
+    const phaseNaming = (raw as any).phaseNaming || 'letters';
+    const blockDigits = Math.max(1, Number((raw as any).blockDigits || 1));
+    const phaseDigits = Math.max(1, Number((raw as any).phaseDigits || 1));
+    const blocksComputed: string[] = [];
+    const phasesComputed: string[] = [];
+    if (blocksCsv) {
+      blocksComputed.push(...blocksCsv.split(',').map((s: string)=>s.trim()).filter(Boolean));
+    } else if (hasBlocks) {
+      const count = Math.max(1, Number((raw as any).blocksCount || 1));
+      for (let i=0;i<count;i++) {
+        if (blockNaming === 'numbers') {
+          blocksComputed.push(String(i+1).padStart(blockDigits, '0'));
+        } else { // letters or default
+          blocksComputed.push(String.fromCharCode('A'.charCodeAt(0)+i));
+        }
+      }
+    }
+    if (phasesCsv) {
+      phasesComputed.push(...phasesCsv.split(',').map((s: string)=>s.trim()).filter(Boolean));
+    } else if (hasPhases) {
+      const count = Math.max(1, Number((raw as any).phaseSides || 1));
+      for (let i=0;i<count;i++) {
+        if (phaseNaming === 'numbers') {
+          phasesComputed.push(String(i+1).padStart(phaseDigits, '0'));
+        } else {
+          phasesComputed.push(String.fromCharCode('A'.charCodeAt(0)+i));
+        }
+      }
+    }
+    const effectiveAddress: any = ((raw as any).hasBlocks || (raw as any).hasPhases) ? 'hybrid' : (raw.addressType || 'floor');
     const payload: any = {
-      addressType: (raw.addressType || 'floor') as any,
+      addressType: effectiveAddress,
       totalUnits: Number(raw.totalUnits) || 0,
-      blocks: (raw.blocks || '').toString().split(',').map((s: string) => s.trim()).filter((s: string) => s),
-      phases: (raw.phases || '').toString().split(',').map((s: string) => s.trim()).filter((s: string) => s),
+      blocks: blocksComputed.length ? blocksComputed : (raw.blocks || '').toString().split(',').map((s: string) => s.trim()).filter((s: string) => s),
+      phases: phasesComputed.length ? phasesComputed : (raw.phases || '').toString().split(',').map((s: string) => s.trim()).filter((s: string) => s),
       floors: Number(raw.floors) || 0,
       includeGround: !!raw.includeGround,
       unitsPerFloor: Number(raw.unitsPerFloor) || 0,

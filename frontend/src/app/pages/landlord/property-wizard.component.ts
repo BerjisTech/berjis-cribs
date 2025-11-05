@@ -1,7 +1,7 @@
 import { NgClass, NgFor, NgIf } from "@angular/common";
 import { Component, OnInit, AfterViewInit, inject, signal } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
-import { Router } from "@angular/router";
+import { Router, ActivatedRoute } from "@angular/router";
 import { firstValueFrom } from "rxjs";
 import { CribsService } from "../../core/cribs.service";
 import { buildPropertyPayload } from "./property-form.utils";
@@ -19,11 +19,13 @@ import { NumberingEditorComponent } from './numbering-editor.component';
 export class PropertyWizardComponent implements OnInit, AfterViewInit {
   private fb = inject(FormBuilder);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private cribs = inject(CribsService);
   private map: any = null;
   private marker: any = null;
 
   readonly step = signal(0);
+  private editId: string | null = null;
   // Structured editor state for wizard: per-block per-floor counts
   structuredCountsWizard: number[][] = [];
   blocksForWizard(): string[] {
@@ -135,7 +137,7 @@ export class PropertyWizardComponent implements OnInit, AfterViewInit {
   readonly cityOpen = signal(false);
   private cityAbort?: AbortController;
 
-  ngOnInit() {
+ngOnInit() {
     // Map picker (basic)
     setTimeout(() => this.ensureMap(), 0);
     // Recompute preview when relevant fields change
@@ -154,6 +156,28 @@ export class PropertyWizardComponent implements OnInit, AfterViewInit {
         if (mode === 'simple') this.ensureMap();
       });
     }
+    const id = this.route.snapshot.paramMap.get('id');
+    if (id) {
+      this.editId = id;
+      this.loadDraft(id);
+    }
+  }
+
+  private async loadDraft(id: string) {
+    try {
+      const p = await firstValueFrom(this.cribs.getProperty(id));
+      if (p) {
+        this.form.patchValue({
+          name: p.name || '',
+          description: p.description || '',
+          addressType: p.addressType || 'simple',
+          address: (p.address || {} as any),
+          location: (p.location || {} as any),
+          details: (p.details || {} as any),
+          policies: (p.policies || {} as any),
+        } as any);
+      }
+    } catch {}
   }
 
   ngAfterViewInit() {
@@ -274,7 +298,14 @@ export class PropertyWizardComponent implements OnInit, AfterViewInit {
     try {
       const raw = this.form.getRawValue();
       const payload = buildPropertyPayload(raw);
-      const property = await firstValueFrom(this.cribs.createProperty(payload));
+      let propertyId: string;
+      if (this.editId) {
+        await firstValueFrom(this.cribs.updateProperty(this.editId, payload));
+        propertyId = this.editId;
+      } else {
+        const created = await firstValueFrom(this.cribs.createProperty(payload));
+        propertyId = (created as any).id;
+      }
       // Optionally auto-generate units from numbering
       if (!saveOnly) {
         const num = raw.numbering || ({} as any);
@@ -283,8 +314,11 @@ export class PropertyWizardComponent implements OnInit, AfterViewInit {
         const includeGround = !!(num as any).includeGround;
         const unitsPerFloor = Number((num as any).unitsPerFloor) || 1;
         if (floors > 0 && unitsPerFloor > 0) {
+          const hasBlocks = !!(num as any).hasBlocks || addr === 'block' || addr === 'hybrid';
+          const hasPhases = !!(num as any).hasPhases || !!((num as any).phasesList || '').toString().trim();
+          const effectiveAddress: any = (hasBlocks || hasPhases) ? 'hybrid' : addr;
           const input: any = {
-            addressType: addr,
+            addressType: effectiveAddress,
             floors,
             includeGround,
             unitsPerFloor,
@@ -296,22 +330,50 @@ export class PropertyWizardComponent implements OnInit, AfterViewInit {
             floorDigits: Number((num as any).floorDigits || 1),
             doorDigits: Number((num as any).doorDigits || ((num as any).floorThreeDigit ? 2 : 1)),
           };
+          const blocksCsv = ((num as any).blockLabels || '').toString().trim();
+          const phasesCsv = ((num as any).phasesList || '').toString().trim();
+          const blockNaming = (num as any).blockNaming || 'letters';
+          const phaseNaming = (num as any).phaseNaming || 'letters';
+          const blockDigits = Number((num as any).blockDigits || 1);
+          const phaseDigits = Number((num as any).phaseDigits || 1);
+          const blockLabels: string[] = [];
+          const phaseLabels: string[] = [];
+          if (blocksCsv) {
+            blockLabels.push(...blocksCsv.split(',').map((s: string)=>s.trim()).filter(Boolean));
+          } else if (hasBlocks) {
+            const count = Math.max(1, Number((num as any).blocksCount || 1));
+            for (let i=0;i<count;i++) {
+              if (blockNaming === 'numbers') blockLabels.push(String(i+1).padStart(blockDigits, '0'));
+              else blockLabels.push(String.fromCharCode('A'.charCodeAt(0)+i));
+            }
+          }
+          if (phasesCsv) {
+            phaseLabels.push(...phasesCsv.split(',').map((s: string)=>s.trim()).filter(Boolean));
+          } else if (hasPhases) {
+            const count = Math.max(1, Number((num as any).phaseSides || 1));
+            for (let i=0;i<count;i++) {
+              if (phaseNaming === 'numbers') phaseLabels.push(String(i+1).padStart(phaseDigits, '0'));
+              else phaseLabels.push(String.fromCharCode('A'.charCodeAt(0)+i));
+            }
+          }
+          if (blockLabels.length) input.blocks = blockLabels;
+          if (phaseLabels.length) input.phases = phaseLabels;
           if (addr === 'simple') {
             input.totalUnits = floors * unitsPerFloor * (includeGround ? (floors>0?floors:1) : floors);
           }
           // Structured counts
-          const blocks = this.blocksForWizard();
-          if (blocks.length > 0 && (addr === 'floor' || addr === 'hybrid' || addr === 'block')) {
+          const labels = blockLabels.length ? blockLabels : this.blocksForWizard();
+          if (labels.length > 0 && (effectiveAddress === 'floor' || effectiveAddress === 'hybrid' || effectiveAddress === 'block')) {
             const map: any = {};
-            blocks.forEach((b, bi) => { map[(b || '').toString().toUpperCase()] = (this.structuredCountsWizard[bi] || []).map(n => Number(n||0)); });
+            labels.forEach((b, bi) => { map[(b || '').toString().toUpperCase()] = (this.structuredCountsWizard[bi] || []).map(n => Number(n||0)); });
             input.perBlockPerFloor = map;
-          } else if (addr === 'floor') {
+          } else if (effectiveAddress === 'floor') {
             input.perFloorCounts = (this.structuredCountsWizard[0] || []).map(n => Number(n||0));
           }
-          await firstValueFrom(this.cribs.generateUnits(property.id, input));
+          await firstValueFrom(this.cribs.generateUnits(propertyId, input));
         }
       }
-      await this.router.navigate(["/landlord/properties", property.id]);
+      await this.router.navigate(["/landlord/properties", propertyId]);
     } catch (error: any) {
       console.error("create property failed", error);
       const msg = (error && (error.error?.message || error.message)) || "Unable to create property";

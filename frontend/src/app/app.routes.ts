@@ -30,6 +30,7 @@ export const routes: Routes = [
         children: [
           { path: "", component: LandlordDashboardComponent },
           { path: "properties/new", component: PropertyWizardComponent },
+          { path: "properties/:id/edit", component: PropertyWizardComponent },
           { path: "properties/:id", component: PropertyWorkspaceComponent },
         ],
       },

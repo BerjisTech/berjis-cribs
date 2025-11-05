@@ -78,6 +78,14 @@ type unitGenerationInput struct {
     PerFloorCounts []int                `json:"perFloorCounts"`
     // optional per-block per-floor counts map
     PerBlockPerFloor map[string][]int   `json:"perBlockPerFloor"`
+    // Extended numbering options (frontend may send; server should honor when present)
+    DoorScheme     string  `json:"doorScheme"`      // simple_numeric | simple_alpha | floor_numeric | floor_alpha
+    FloorLabelKind string  `json:"floorLabelKind"`  // numeric | alpha
+    BlockDigits    int     `json:"blockDigits"`
+    PhaseDigits    int     `json:"phaseDigits"`
+    FloorDigits    int     `json:"floorDigits"`
+    DoorDigits     int     `json:"doorDigits"`
+    GroundStyle    string  `json:"groundStyle"`      // 'g' | '00'
 }
 
 func registerPropertyRoutes(app *fiber.App, deps protectedDeps) {
@@ -796,16 +804,93 @@ func defaultUnitStatus(status string) string {
 
 // generateUnits builds unitInput slices for the given generation input.
 func generateUnits(in unitGenerationInput) []unitInput {
+    // helpers
+    alphaLabel := func(n int) string {
+        if n <= 0 { return "" }
+        out := ""
+        for n > 0 {
+            n--
+            out = string(rune('A'+(n%26))) + out
+            n /= 26
+        }
+        return out
+    }
+    zpad := func(n, w int) string { if w < 1 { w = 1 }; return fmt.Sprintf("%0*d", w, n) }
+
+    // sanitize options
+    dd := in.DoorDigits; if dd <= 0 { dd = 1 }
+    fd := in.FloorDigits; if fd <= 0 { fd = 1 }
+    doorScheme := strings.TrimSpace(strings.ToLower(in.DoorScheme))
+    if doorScheme == "" { doorScheme = "floor_numeric" }
+    floorKind := strings.TrimSpace(strings.ToLower(in.FloorLabelKind))
+    if floorKind == "" { floorKind = "numeric" }
+    groundStyle := strings.TrimSpace(strings.ToLower(in.GroundStyle))
+    if groundStyle == "" { groundStyle = "g" }
+
     out := []unitInput{}
     at := strings.ToLower(strings.TrimSpace(in.AddressType))
+
+    // simple label builders
+    makeSeq := func(idx int) string {
+        if doorScheme == "simple_alpha" { return alphaLabel(idx) }
+        return zpad(idx, dd)
+    }
+    // floor + unit label builder respecting alpha/numeric floors and door schemes
+    floorDoor := func(floorIdx int, unitIdx int) string {
+        if doorScheme == "floor_alpha" {
+            // alpha doors per floor
+            d := alphaLabel(unitIdx)
+            if floorKind == "alpha" {
+                // A + A, B + A, ...
+                fl := alphaLabel(floorIdx)
+                if floorIdx == 0 { fl = "A" } // ground => A
+                return fl + d
+            }
+            if floorIdx == 0 {
+                return "g" + d
+            }
+            return fmt.Sprintf("%d%s", floorIdx, d)
+        }
+        // numeric doors
+        if floorKind == "alpha" {
+            fl := alphaLabel(floorIdx)
+            if floorIdx == 0 { fl = "A" }
+            return fl + zpad(unitIdx, dd)
+        }
+        // numeric floors
+        if floorIdx == 0 {
+            if groundStyle == "00" { return zpad(unitIdx, maxInt(2, dd)) }
+            return "g" + zpad(unitIdx, dd)
+        }
+        return zpad(floorIdx, fd) + zpad(unitIdx, dd)
+    }
+
+    // floor counts helper (returns counts including optional ground as first index)
+    floorCounts := func(floors, per int, includeGround bool, overrides []int) []int {
+        counts := []int{}
+        if len(overrides) > 0 {
+            counts = append(counts, overrides...)
+            if includeGround && len(overrides) == floors {
+                // prepend default ground when caller forgot to include ground index
+                counts = append([]int{per}, counts...)
+            }
+            return counts
+        }
+        if includeGround { counts = append(counts, per) }
+        for i := 0; i < floors; i++ { counts = append(counts, per) }
+        return counts
+    }
+
     switch at {
     case "standalone":
-        out = append(out, unitInput{AddressType: "standalone", DoorNumber: "1", DisplayName: "Unit 1", UnitType: in.UnitType, Status: in.DefaultStatus})
+        dn := makeSeq(1)
+        out = append(out, unitInput{AddressType: "standalone", DoorNumber: dn, DisplayName: "Unit " + dn, UnitType: in.UnitType, Status: in.DefaultStatus})
     case "simple":
         n := in.TotalUnits
         if n <= 0 { n = 1 }
         for i := 1; i <= n; i++ {
-            out = append(out, unitInput{AddressType: "simple", DoorNumber: fmt.Sprintf("%d", i), DisplayName: fmt.Sprintf("Unit %d", i), UnitType: in.UnitType, Status: in.DefaultStatus})
+            dn := makeSeq(i)
+            out = append(out, unitInput{AddressType: "simple", DoorNumber: dn, DisplayName: "Unit " + dn, UnitType: in.UnitType, Status: in.DefaultStatus})
         }
     case "block":
         if len(in.Blocks) == 0 { in.Blocks = []string{"A"} }
@@ -813,47 +898,36 @@ func generateUnits(in unitGenerationInput) []unitInput {
         if per <= 0 { per = 4 }
         for _, b := range in.Blocks {
             b = strings.TrimSpace(b)
-            for i := 1; i <= per; i++ {
-                out = append(out, unitInput{AddressType: "block", Block: b, DoorNumber: fmt.Sprintf("%s%d", b, i), DisplayName: fmt.Sprintf("%s%d", b, i), UnitType: in.UnitType, Status: in.DefaultStatus})
+            for u := 1; u <= per; u++ {
+                dn := b + makeSeq(u)
+                out = append(out, unitInput{AddressType: "block", Block: b, DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
             }
         }
     case "floor":
         floors := in.Floors
         if floors <= 0 { floors = 4 }
-        // Determine per-floor counts
-        counts := in.PerFloorCounts
-        if len(counts) == 0 {
-            per := in.UnitsPerFloor
-            if per <= 0 { per = 4 }
-            if in.IncludeGround {
-                counts = append(counts, per) // index 0 -> ground
-            }
-            for i := 0; i < floors; i++ { counts = append(counts, per) }
-        } else {
-            // If provided and doesn't include ground while IncludeGround=true, prepend ground with default per
-            if in.IncludeGround && len(counts) == floors { counts = append([]int{in.UnitsPerFloor}, counts...) }
-        }
-        // Build ground then floors using counts
+        per := in.UnitsPerFloor
+        if per <= 0 { per = 4 }
+        counts := floorCounts(floors, per, in.IncludeGround, in.PerFloorCounts)
         idx := 0
         if in.IncludeGround {
-            per := counts[idx]
-            if per <= 0 { per = 1 }
-            for u := 1; u <= per; u++ {
-                out = append(out, unitInput{AddressType: "floor", Floor: intPtr(0), DoorNumber: fmt.Sprintf("G%d", u), DisplayName: fmt.Sprintf("G%d", u), UnitType: in.UnitType, Status: in.DefaultStatus})
+            pg := counts[idx]; if pg <= 0 { pg = 1 }
+            for u := 1; u <= pg; u++ {
+                dn := floorDoor(0, u)
+                out = append(out, unitInput{AddressType: "floor", Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
             }
             idx++
         }
         for f := 1; f <= floors; f++ {
-            per := in.UnitsPerFloor
-            if idx < len(counts) && counts[idx] > 0 { per = counts[idx] }
-            if per <= 0 { per = 1 }
-            for u := 1; u <= per; u++ {
-                out = append(out, unitInput{AddressType: "floor", Floor: intPtr(f), DoorNumber: fmt.Sprintf("%d%02d", f, u), DisplayName: fmt.Sprintf("%d%02d", f, u), UnitType: in.UnitType, Status: in.DefaultStatus})
+            pf := per
+            if idx < len(counts) && counts[idx] > 0 { pf = counts[idx] }
+            for u := 1; u <= pf; u++ {
+                dn := floorDoor(f, u)
+                out = append(out, unitInput{AddressType: "floor", Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
             }
             idx++
         }
     case "hybrid":
-        // Blocks + Floors pattern, door like A101, B404, optional phases as prefix (e.g., AB103)
         if len(in.Blocks) == 0 { in.Blocks = []string{"A"} }
         floors := in.Floors
         if floors <= 0 { floors = 4 }
@@ -861,35 +935,27 @@ func generateUnits(in unitGenerationInput) []unitInput {
         if per <= 0 { per = 4 }
         for _, b := range in.Blocks {
             b = strings.TrimSpace(b)
+            counts := []int{}
+            if bc, ok := in.PerBlockPerFloor[strings.ToUpper(b)]; ok && len(bc) > 0 {
+                counts = append(counts, bc...)
+            }
             if len(in.Phases) == 0 {
-                // no phases, just block+floor
-                // override with per-block counts if provided
-                blockCounts := in.PerBlockPerFloor[strings.ToUpper(b)]
-                // build a counts slice like floor mode
-                counts := []int{}
-                if len(blockCounts) > 0 {
-                    counts = append(counts, blockCounts...)
-                }
-                // fallback to unitsPerFloor
-                if len(counts) == 0 {
-                    if in.IncludeGround { counts = append(counts, per) }
-                    for i := 0; i < floors; i++ { counts = append(counts, per) }
-                }
+                // block only
+                c := floorCounts(floors, per, in.IncludeGround, counts)
                 idx := 0
                 if in.IncludeGround {
-                    pg := counts[idx]
-                    if pg <= 0 { pg = per }
+                    pg := c[idx]; if pg <= 0 { pg = per }
                     for u := 1; u <= pg; u++ {
-                        dn := fmt.Sprintf("%sG%d", b, u)
+                        dn := b + floorDoor(0, u)
                         out = append(out, unitInput{AddressType: "hybrid", Block: b, Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
                     }
                     idx++
                 }
                 for f := 1; f <= floors; f++ {
                     pf := per
-                    if idx < len(counts) && counts[idx] > 0 { pf = counts[idx] }
+                    if idx < len(c) && c[idx] > 0 { pf = c[idx] }
                     for u := 1; u <= pf; u++ {
-                        dn := fmt.Sprintf("%s%d%02d", b, f, u)
+                        dn := b + floorDoor(f, u)
                         out = append(out, unitInput{AddressType: "hybrid", Block: b, Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
                     }
                     idx++
@@ -897,28 +963,22 @@ func generateUnits(in unitGenerationInput) []unitInput {
             } else {
                 for _, p := range in.Phases {
                     p = strings.TrimSpace(p)
-                    prefix := fmt.Sprintf("%s%s", b, p)
-                    // Per-block counts also apply for phase variants
-                    counts := in.PerBlockPerFloor[strings.ToUpper(b)]
-                    if len(counts) == 0 {
-                        if in.IncludeGround { counts = append(counts, per) }
-                        for i := 0; i < floors; i++ { counts = append(counts, per) }
-                    }
+                    prefix := b + p
+                    c := floorCounts(floors, per, in.IncludeGround, counts)
                     idx := 0
                     if in.IncludeGround {
-                        pg := counts[idx]
-                        if pg <= 0 { pg = per }
+                        pg := c[idx]; if pg <= 0 { pg = per }
                         for u := 1; u <= pg; u++ {
-                            dn := fmt.Sprintf("%sG%d", prefix, u)
+                            dn := prefix + floorDoor(0, u)
                             out = append(out, unitInput{AddressType: "hybrid", Block: b, Phase: p, Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
                         }
                         idx++
                     }
                     for f := 1; f <= floors; f++ {
                         pf := per
-                        if idx < len(counts) && counts[idx] > 0 { pf = counts[idx] }
+                        if idx < len(c) && c[idx] > 0 { pf = c[idx] }
                         for u := 1; u <= pf; u++ {
-                            dn := fmt.Sprintf("%s%d%02d", prefix, f, u)
+                            dn := prefix + floorDoor(f, u)
                             out = append(out, unitInput{AddressType: "hybrid", Block: b, Phase: p, Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
                         }
                         idx++
@@ -927,15 +987,16 @@ func generateUnits(in unitGenerationInput) []unitInput {
             }
         }
     default:
-        // fallback simple
         n := in.TotalUnits
         if n <= 0 { n = 1 }
         for i := 1; i <= n; i++ {
-            out = append(out, unitInput{AddressType: "simple", DoorNumber: fmt.Sprintf("%d", i), DisplayName: fmt.Sprintf("Unit %d", i), UnitType: in.UnitType, Status: in.DefaultStatus})
+            dn := makeSeq(i)
+            out = append(out, unitInput{AddressType: "simple", DoorNumber: dn, DisplayName: "Unit " + dn, UnitType: in.UnitType, Status: in.DefaultStatus})
         }
     }
     return out
 }
+
 
 func intPtr(v int) *int { return &v }
 
