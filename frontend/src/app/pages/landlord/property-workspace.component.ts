@@ -8,6 +8,7 @@ import { Property, PropertyMedia, PropertyUnit } from "../../shared/models";
 import { buildMediaPayload, buildPropertyPayload } from "./property-form.utils";
 import { environment } from "../../../environments/environment";
 import { PropertyUnitMapComponent } from "./property-unit-map.component";
+import { generatePreview, NumberingConfig } from './numbering-preview.util';
 
 @Component({
   selector: "app-property-workspace",
@@ -46,12 +47,35 @@ export class PropertyWorkspaceComponent implements OnInit {
   readonly unitsForm = this.fb.array([]);
   readonly generateForm = this.fb.group({
     addressType: ["floor"],
-    totalUnits: [16],
-    blocks: ["A"],
-    phases: [""],
     floors: [4],
     includeGround: [true],
     unitsPerFloor: [4],
+    // Numbering controls
+    floorLabelKind: ['numeric'], // numeric | alpha
+    doorScheme: ['floor_numeric'], // simple_numeric | simple_alpha | floor_numeric | floor_alpha
+    floorThreeDigit: [true],
+    groundStyle: ['g'],
+    // Digits
+    blockDigits: [1],
+    phaseDigits: [1],
+    floorDigits: [1],
+    doorDigits: [2],
+    // Blocks
+    hasBlocks: [false],
+    blocksCount: [1],
+    blockNaming: ['letters'], // letters | numbers | none | custom
+    blockPrefix: [''],
+    blockLabelsCsv: [''],
+    // Phases
+    hasPhases: [false],
+    phaseSides: [2],
+    phaseNaming: ['letters'], // letters | numbers | none
+    phasesListCsv: [''],
+    // Legacy/simple inputs kept (will be mapped):
+    blocks: [""],
+    phases: [""],
+    // Non-numbering
+    totalUnits: [16],
     unitType: ["apartment"],
     defaultStatus: ["available"],
     perFloorCounts: [""],
@@ -70,11 +94,28 @@ export class PropertyWorkspaceComponent implements OnInit {
   readonly addPaymentForm = this.fb.group({ amount: [0], method: [""], reference: [""], paidOn: [""] });
   readonly closeLeaseForm = this.fb.group({ endDate: [""], note: [""] });
 
+  // Non-destructive preview state for Generate Units
+  unitPreviewMode: 'simple' | 'block' | 'floor' | 'hybrid' | 'standalone' = 'floor';
+  unitPreviewBlocks: Array<{ label: string; sides?: string[]; floors: Array<{ idx: number; label: string; cells: string[] | string[][] }> }> = [];
+  get generateUnitSlots(): any[] {
+    const n = Math.max(1, Number(this.generateForm.value.unitsPerFloor || 1));
+    return Array.from({ length: n });
+  }
+  get simplePreviewCells(): string[] {
+    const b = this.unitPreviewBlocks?.[0];
+    const f = b?.floors?.[0];
+    const cells: any = f?.cells || [];
+    return Array.isArray(cells) ? cells : [];
+  }
+
   async ngOnInit() {
     const id = this.route.snapshot.paramMap.get("id");
     if (id) {
       await this.load(id);
     }
+    // Attach preview renderer for generate form
+    this.generateForm.valueChanges.subscribe(() => this.renderGeneratePreview());
+    this.renderGeneratePreview();
   }
 
   get units(): FormArray {
@@ -148,6 +189,39 @@ export class PropertyWorkspaceComponent implements OnInit {
     } finally {
       this.saving.set(false);
     }
+  }
+
+  // ----- Generate Units: Non-destructive preview -----
+  private renderGeneratePreview() {
+    const v = this.generateForm.getRawValue() as any;
+    const addr: typeof this.unitPreviewMode = (v.addressType || 'floor');
+    this.unitPreviewMode = addr;
+    const blocksCsv = (v.blockLabelsCsv || v.blocks || '').toString();
+    const phasesCsv = (v.phasesListCsv || v.phases || '').toString();
+    const cfg: NumberingConfig = {
+      addressType: addr,
+      floors: Math.max(0, Number(v.floors || 0)),
+      includeGround: !!v.includeGround,
+      floorLabelKind: (v.floorLabelKind || 'numeric'),
+      doorScheme: (v.doorScheme || 'floor_numeric'),
+      floorThreeDigit: !!v.floorThreeDigit,
+      groundStyle: (v.groundStyle || 'g'),
+      hasBlocks: !!v.hasBlocks || !!blocksCsv,
+      blocksCount: Number(v.blocksCount || 1),
+      blockNaming: (v.blockNaming || 'letters'),
+      blockPrefix: (v.blockPrefix || ''),
+      blockLabelsCsv: blocksCsv,
+      hasPhases: !!v.hasPhases || !!phasesCsv,
+      phaseSides: Number(v.phaseSides || 1),
+      phaseNaming: (v.phaseNaming || 'letters'),
+      phasesListCsv: phasesCsv,
+      blockDigits: Number(v.blockDigits || 1),
+      phaseDigits: Number(v.phaseDigits || 1),
+      floorDigits: Number(v.floorDigits || 1),
+      doorDigits: Number(v.doorDigits || (v.floorThreeDigit ? 2 : 1)),
+    };
+    const unitsPerFloor = Math.max(1, Number(v.unitsPerFloor || 1));
+    this.unitPreviewBlocks = generatePreview(cfg, unitsPerFloor);
   }
 
   async saveUnits() {
@@ -421,3 +495,4 @@ function safeJsonParse(raw: any) {
     return {};
   }
 }
+

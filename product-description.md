@@ -32,6 +32,62 @@ Organization → Property → Building → Unit (Door)
 6. **Standalone**: Single door, no number required
 7. **Unnumbered Multiple**: Force to simple sequential (1, 2, 3...)
 
+#### Create Property Wizard (UX spec)
+
+The create flow is split into clear, focused steps with persistent draft save. Every input has helper copy in the UI. Buttons: `Back`, `Next`, `Save draft`, `Create`.
+
+1) Basics
+- Name: Public-facing property name; keep it recognizable (e.g., “Berjis Suites Riverside”).
+- Addressing model: Defines how doors are labeled.
+  - Simple: 1, 2, 3 …
+  - Floor: G1–Gx, 101–10x, 201–20x … (supports G-floor toggle and 101 vs 11 style)
+  - Block: A1…Ax, B1…Bx … (supports letters, numbers, or custom prefixes)
+  - Hybrid: Block + Floor conventions (e.g., A101) for compounds with multiple buildings.
+- Highlights: Short marketing description that appears in search; mention location, amenities, uniqueness.
+- Address (City, Estate, Street): Used in search filters and directions.
+- Map location: Click/drag the marker; improves search ranking and routing.
+
+2) Addressing (Numbering) — own section
+- Floors: Count of elevated floors above ground. Set to 0 for single-level sites.
+- Include ground floor: When enabled, shows G1…Gx (Kenyan convention for ground-level units).
+- Units per floor: How many doors on each floor (default evenly distributed).
+- Floor naming: Choose `101, 102…` (prefix) or `11, 12…` (plain) for the number style per floor.
+- Blocks (if Block/Hybrid):
+  - Number of blocks: Total distinct buildings at the site.
+  - Naming: Letters (A, B…), Numbers (1, 2…), or Custom prefix (e.g., “Block”, becomes Block 1, Block 2…).
+  - Phases/sides (optional): Enable if blocks have wings/phases (e.g., AA/AB). Specify number of sides (usually 2: A/B). Units are split evenly per side in preview.
+
+Live preview tables
+- The right pane renders tables in real time as you adjust inputs.
+- Floor model example (25 units, 1 building, 5 floors, 5 units/floor, ground included): bottom row is G1..G5; above rows are 101..105, 201..205, …
+- Block model (letters): For 5 blocks, you see tables A..E; each table shows G/floor rows and unit cells.
+- Phased blocks: For each block (e.g., A) one table displays Side A and Side B columns with correct door numbers on each floor.
+- Hybrid: Combines block labels with floor numbering in cells, keeping the same preview shape.
+
+Actions
+- Save draft: Persists property shell; you can upload media and fine‑tune numbering later in the workspace.
+- Create: Persists and (if configured) generates units per inputs. You can regenerate from the landlord workspace if needed.
+
+3) Policies & Review
+- Occupancy modes: Comma list like `nightly,weekly,monthly` to guide pricing defaults and search facets.
+- Base rates: Free‑form examples (e.g., “Studio KES 6,500 nightly; 1BR KES 120,000 monthly”).
+- Amenities: Comma list (Generator, Fiber, Pool…). Displayed on search and detail pages.
+- Cancellation/House rules: Short policy text tenants see before booking.
+
+#### Live Unit Tables & Status Colors
+- Visual maps render as tables/grids with color codes used throughout:
+  - Green: vacant/available
+  - Sky blue: occupied/active
+  - Amber: maintenance
+  - Orange: reserved
+  - Slate: inactive/unlisted
+- Tables appear during creation (preview) and on dashboards after units exist. Tenant’s unit page at `/crib/:id` includes a property occupancy map using the same legend.
+
+#### Public Vacancy Sharing
+- Landlords may choose to expose vacancy counts to improve discovery.
+- In search, when a user selects a property, the details panel shows “Vacant: N” if the landlord has allowed public occupancy.
+- Public unit status endpoint returns minimal fields (id, doorNumber, status, addressType, block, phase, floor) for maps and counts.
+
 #### Unit Schema
 ```
 - unit_id (UUID)

@@ -113,7 +113,7 @@ function cleanRecord(value: MaybeRecord): Record<string, unknown> | undefined {
   return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function normalizeLocation(value: any): { lat: number; lng: number } | undefined {
+function normalizeLocation(value: any): { lat: number; lng: number; formattedAddress?: string } | undefined {
   if (!value || typeof value !== "object") {
     return undefined;
   }
@@ -122,7 +122,8 @@ function normalizeLocation(value: any): { lat: number; lng: number } | undefined
   if (lat === undefined || lng === undefined) {
     return undefined;
   }
-  return { lat, lng };
+  const formatted = optionalString((value as any).formattedAddress);
+  return formatted ? { lat, lng, formattedAddress: formatted } : { lat, lng };
 }
 
 function toStringList(value: any): string[] | undefined {

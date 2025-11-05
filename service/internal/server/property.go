@@ -645,43 +645,49 @@ type serializedPropertyPayloads struct {
 }
 
 func serializePropertyPayloads(input propertyInput) (serializedPropertyPayloads, error) {
-	var result serializedPropertyPayloads
-	if input.Address != nil {
-		b, err := json.Marshal(input.Address)
-		if err != nil {
-			return result, errors.New("address invalid json structure")
-		}
-		result.Address = b
-	}
-	if input.Location != nil {
-		b, err := json.Marshal(input.Location)
-		if err != nil {
-			return result, errors.New("location invalid json structure")
-		}
-		result.Location = b
-	}
-	if input.Details != nil {
-		b, err := json.Marshal(input.Details)
-		if err != nil {
-			return result, errors.New("details invalid json structure")
-		}
-		result.Details = b
-	}
-	if input.Amenities != nil {
-		b, err := json.Marshal(input.Amenities)
-		if err != nil {
-			return result, errors.New("amenities invalid json structure")
-		}
-		result.Amenities = b
-	}
-	if input.Policies != nil {
-		b, err := json.Marshal(input.Policies)
-		if err != nil {
-			return result, errors.New("policies invalid json structure")
-		}
-		result.Policies = b
-	}
-	return result, nil
+    var result serializedPropertyPayloads
+    if input.Address != nil {
+        b, err := json.Marshal(input.Address)
+        if err != nil {
+            return result, errors.New("address invalid json structure")
+        }
+        result.Address = b
+    }
+    if input.Location != nil {
+        b, err := json.Marshal(input.Location)
+        if err != nil {
+            return result, errors.New("location invalid json structure")
+        }
+        result.Location = b
+    }
+    if input.Details != nil {
+        b, err := json.Marshal(input.Details)
+        if err != nil {
+            return result, errors.New("details invalid json structure")
+        }
+        result.Details = b
+    }
+    // Ensure amenities_json is never NULL (column has NOT NULL constraint)
+    if input.Amenities != nil {
+        b, err := json.Marshal(input.Amenities)
+        if err != nil {
+            return result, errors.New("amenities invalid json structure")
+        }
+        result.Amenities = b
+    } else {
+        result.Amenities = json.RawMessage("[]")
+    }
+    // Prefer non‑null policies JSON as well (empty object by default)
+    if input.Policies != nil {
+        b, err := json.Marshal(input.Policies)
+        if err != nil {
+            return result, errors.New("policies invalid json structure")
+        }
+        result.Policies = b
+    } else {
+        result.Policies = json.RawMessage("{}")
+    }
+    return result, nil
 }
 
 func validatePropertyInput(input propertyInput) error {

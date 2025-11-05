@@ -28,6 +28,7 @@ export class ExploreComponent implements OnInit, OnDestroy {
   readonly properties = signal<PublicProperty[]>([]);
   readonly loading = signal(false);
   readonly selectedProperty = signal<PublicProperty | null>(null);
+  readonly vacancyByProperty = signal<Record<string, number>>({});
   readonly signInUrl = "https://berjis.tech/auth/login";
   readonly isAuthenticated = this.session.isAuthenticated;
   readonly canManageLandlord = this.session.canManageLandlord;
@@ -71,6 +72,8 @@ export class ExploreComponent implements OnInit, OnDestroy {
 
   focusProperty(property: PublicProperty) {
     this.selectedProperty.set(property);
+    // Lazy-load vacancy count for the focused property
+    this.loadVacancyCount(property.id);
     if (this.map && property.location?.lng && property.location?.lat) {
       this.map.flyTo({
         center: [property.location.lng, property.location.lat],
@@ -79,6 +82,23 @@ export class ExploreComponent implements OnInit, OnDestroy {
         curve: 1.2,
       });
       this.highlightPropertyOnMap(property.id);
+    }
+  }
+
+  private async loadVacancyCount(propertyId: string) {
+    try {
+      const list = await firstValueFrom(this.cribs.getPublicUnitStatus(propertyId));
+      const vacant = (list || []).filter(u => {
+        const s = (u.status || '').toLowerCase();
+        return s === 'available' || s === 'vacant';
+      }).length;
+      const next = { ...this.vacancyByProperty() };
+      next[propertyId] = vacant;
+      this.vacancyByProperty.set(next);
+    } catch {
+      const next = { ...this.vacancyByProperty() };
+      next[propertyId] = 0;
+      this.vacancyByProperty.set(next);
     }
   }
 

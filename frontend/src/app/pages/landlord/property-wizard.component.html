@@ -1,101 +1,308 @@
-<form [formGroup]="form" class="space-y-5">
-  <div class="grid gap-4 md:grid-cols-2">
-    <label class="flex flex-col gap-2">
-      <span class="text-sm font-medium text-slate-900 dark:text-slate-200">Property name</span>
-      <input formControlName="name" class="input" placeholder="Berjis Suites Riverside" />
-    </label>
-    <label class="flex flex-col gap-2">
-      <span class="text-sm font-medium text-slate-900 dark:text-slate-200">Addressing model</span>
-      <select formControlName="addressType" class="input">
-        <option value="simple">Simple sequential</option>
-        <option value="block">Block based</option>
-        <option value="floor">Floor based</option>
-        <option value="hybrid">Hybrid</option>
-      </select><span class="text-xs text-slate-500">Choose how doors are numbered: simple (1,2,3), block (A1,B1), floor
-        (101,102), or hybrid.</span></label>
+<form [formGroup]="form" class="space-y-6">
+  <!-- Wizard header / steps indicator -->
+  <div class="flex items-center gap-3 text-xs">
+    <span [ngClass]="{ 'font-semibold text-white': step()===0, 'text-slate-400': step()!==0 }">1. Basics</span>
+    <span class="text-slate-600">→</span>
+    <span [ngClass]="{ 'font-semibold text-white': step()===1, 'text-slate-400': step()!==1 }">2. Addressing</span>
+    <span class="text-slate-600">→</span>
+    <span [ngClass]="{ 'font-semibold text-white': step()===2, 'text-slate-400': step()!==2 }">3. Policies & Review</span>
   </div>
 
-  <label class="flex flex-col gap-2">
-    <span class="text-sm font-medium text-slate-900 dark:text-slate-200">Highlights</span><span
-      class="text-xs text-slate-500">A short pitch tenants will see. Mention unique amenities and neighborhood
-      context.</span>
-    <textarea formControlName="description" rows="4" class="input"
-      placeholder="Boutique serviced apartments in Kilimani with solar backup and concierge"></textarea>
-  </label>
-
-  <div formGroupName="address" class="grid gap-4 md:grid-cols-3">
+  <!-- Step 1: Basics -->
+  <section *ngIf="step()===0" class="space-y-5">
+    <div class="grid gap-4 md:grid-cols-2">
+      <label class="flex flex-col gap-2">
+        <span class="text-sm font-medium text-slate-900 dark:text-slate-200">Property name</span>
+        <input formControlName="name" class="input" placeholder="Berjis Suites Riverside" />
+      </label>
+      <label class="flex flex-col gap-2">
+        <span class="text-sm font-medium text-slate-900 dark:text-slate-200">Addressing model</span>
+        <select formControlName="addressType" class="input">
+          <option value="simple">Simple sequential</option>
+          <option value="block">Block based</option>
+          <option value="floor">Floor based</option>
+          <option value="hybrid">Hybrid</option>
+        </select>
+        <span class="text-xs text-slate-500">Choose how doors are numbered: simple (1,2,3), block (A1,B1), floor (101,102), or hybrid.</span>
+      </label>
+    </div>
     <label class="flex flex-col gap-2">
+      <span class="text-sm font-medium text-slate-900 dark:text-slate-200">Highlights</span>
+      <span class="text-xs text-slate-500">A short pitch tenants will see. Mention unique amenities and neighborhood context.</span>
+      <textarea formControlName="description" rows="4" class="input" placeholder="Boutique serviced apartments in Kilimani with solar backup and concierge"></textarea>
+    </label>
+
+    <div formGroupName="address" class="grid gap-4 md:grid-cols-3">
+    <label class="flex flex-col gap-2 relative">
       <span class="text-sm text-slate-900 dark:text-slate-200">City / Town</span>
-      <input formControlName="city" class="input" placeholder="Nairobi" />
+      <input formControlName="city" class="input" placeholder="Nairobi"
+        (input)="onCityInput($any($event.target).value)"
+        (focus)="onCityFocus()" (blur)="onCityBlur()" />
+      <div *ngIf="cityOpen() && (cityOptions()?.length || 0) > 0"
+        class="absolute z-50 mt-20 w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
+        <button type="button" class="block w-full px-3 py-2 text-left text-sm text-slate-800 dark:text-slate-100 hover:bg-slate-100/60 dark:hover:bg-white/10"
+          *ngFor="let o of cityOptions()" (mousedown)="selectCity(o)">{{ o.label }}</button>
+      </div>
     </label>
-    <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-900 dark:text-slate-200">Estate</span>
-      <input formControlName="estate" class="input" placeholder="Kilimani" />
-    </label>
-    <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-900 dark:text-slate-200">Street / Road</span>
-      <input formControlName="street" class="input" placeholder="Arboretum Drive" />
-    </label>
+      <label class="flex flex-col gap-2">
+        <span class="text-sm text-slate-900 dark:text-slate-200">Estate</span>
+        <input formControlName="estate" class="input" placeholder="Kilimani" />
+      </label>
+      <label class="flex flex-col gap-2">
+        <span class="text-sm text-slate-900 dark:text-slate-200">Street / Road</span>
+        <input formControlName="street" class="input" placeholder="Arboretum Drive" />
+      </label>
+    </div>
+    <div formGroupName="location" class="grid gap-4 md:grid-cols-2">
+      <label class="flex flex-col gap-2">
+        <span class="text-sm text-slate-900 dark:text-slate-200">Latitude</span>
+        <input formControlName="lat" type="number" step="0.000001" class="input" placeholder="-1.2921" />
+      </label>
+      <label class="flex flex-col gap-2">
+        <span class="text-sm text-slate-900 dark:text-slate-200">Longitude</span>
+        <input formControlName="lng" type="number" step="0.000001" class="input" placeholder="36.8219" />
+      </label>
+    </div>
+    <div class="mt-2">
+      <div id="map-picker" class="h-64 w-full rounded-xl border border-slate-200 dark:border-slate-700" style="touch-action: pan-x pan-y;"></div>
+      <p class="mt-2 text-xs text-slate-500">Click the map to set location. Drag the marker to fine-tune. Accurate location improves search and routing. Location is required to save a draft.</p>
+      <p *ngIf="mapError()" class="mt-1 text-xs text-rose-400">{{ mapError() }}</p>
+    </div>
+  </section>
+
+  <!-- Step 2: Addressing (own section due to space) -->
+  <section *ngIf="step()===1" class="space-y-5" formGroupName="numbering">
+    <!-- 1) Checkboxes -->
+    <div class="grid gap-2 md:grid-cols-3">
+      <label class="flex items-center gap-2">
+        <input type="checkbox" formControlName="hasBlocks" />
+        <span class="text-xs text-slate-500">Do you have blocks?</span>
+      </label>
+      <label class="flex items-center gap-2" *ngIf="showBlockControls">
+        <input type="checkbox" formControlName="hasPhases" />
+        <span class="text-xs text-slate-500">Do the blocks have phases/sides?</span>
+      </label>
+      <label class="flex items-center gap-2">
+        <input type="checkbox" formControlName="includeGround" />
+        <span class="text-xs text-slate-500">Ground floor is "G"</span>
+      </label>
+      <label class="flex items-center gap-2" *ngIf="isFloorNumeric">
+        <input type="checkbox" formControlName="floorThreeDigit" />
+        <span class="text-xs text-slate-500">Use 3-digit floor numbers (101 instead of 11)</span>
+      </label>
+    </div>
+
+    <!-- 2) Dropdowns -->
+    <div class="grid gap-3 md:grid-cols-3 mt-2">
+      <label class="flex flex-col gap-1" *ngIf="showBlockControls">
+        <span class="text-xs text-slate-500">Choose how you label your blocks</span>
+        <select formControlName="blockNaming" class="input">
+          <option value="letters">Letters (A, B, C.)</option>
+          <option value="numbers">Numbers (1, 2, 3.)</option>
+          <option value="custom">Custom prefix</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1" *ngIf="showBlockControls && numberingVal?.blockNaming==='numbers'">
+        <span class="text-xs text-slate-500">Block number digits</span>
+        <select formControlName="blockDigits" class="input">
+          <option [value]="1">1</option>
+          <option [value]="2">2</option>
+          <option [value]="3">3</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1" *ngIf="showPhases">
+        <span class="text-xs text-slate-500">Choose how you label your blocks' phases</span>
+        <select formControlName="phaseNaming" class="input">
+          <option value="letters">Letters (A, B)</option>
+          <option value="numbers">Numbers (1, 2)</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1" *ngIf="showPhases && numberingVal?.phaseNaming==='numbers'">
+        <span class="text-xs text-slate-500">Phase number digits</span>
+        <select formControlName="phaseDigits" class="input">
+          <option [value]="1">1</option>
+          <option [value]="2">2</option>
+          <option [value]="3">3</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-xs text-slate-500">Choose how you label your floors</span>
+        <select formControlName="floorLabelKind" class="input">
+          <option value="numeric">Numeric (1, 2, 3)</option>
+          <option value="alpha">Alphabetic (A, B, C)</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1" *ngIf="numberingVal?.floorLabelKind==='numeric'">
+        <span class="text-xs text-slate-500">Floor number digits</span>
+        <select formControlName="floorDigits" class="input">
+          <option [value]="1">1</option>
+          <option [value]="2">2</option>
+          <option [value]="3">3</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1" *ngIf="isFloorMode">
+        <span class="text-xs text-slate-500">On each floor, label doors with</span>
+        <select formControlName="floorDoorKind" class="input">
+          <option value="numeric">Numeric (.01, .02)</option>
+          <option value="alpha">Alphabetic (.A, .B)</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-xs text-slate-500">Door number system</span>
+        <select formControlName="doorScheme" class="input">
+          <option value="simple_numeric">Simple numeric (1..n across floors)</option>
+          <option value="simple_alpha">Simple alphabetic (A..Z, AA..)</option>
+          <option value="floor_numeric">Floor-based numeric (G1, 101..)</option>
+          <option value="floor_alpha">Floor-based alphabetic (G A, 1A, 1B..)</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1" *ngIf="numberingVal?.doorScheme==='simple_numeric' || numberingVal?.doorScheme==='floor_numeric'">
+        <span class="text-xs text-slate-500">Door number digits</span>
+        <select formControlName="doorDigits" class="input">
+          <option [value]="1">1</option>
+          <option [value]="2">2</option>
+          <option [value]="3">3</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-xs text-slate-500">Ground floor style</span>
+        <select formControlName="groundStyle" class="input">
+          <option value="g">g1, g2.</option>
+          <option value="00">001, 002.</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1" *ngIf="isSequential">
+        <span class="text-xs text-slate-500">Simple sequence uses</span>
+        <select formControlName="sequenceKind" class="input">
+          <option value="numeric">Numeric (1..n)</option>
+          <option value="alpha">Alphabetic (A..Z, AA..)</option>
+        </select>
+      </label>
+    </div>
+
+    <!-- 3) Numbers: blocks → phases → floors → units -->
+    <div class="grid gap-3 md:grid-cols-4 mt-2">
+      <label class="flex flex-col gap-1 md:col-span-1" *ngIf="showBlockControls">
+        <span class="text-xs text-slate-500">How many blocks do you have?</span>
+        <input formControlName="blocksCount" type="number" min="1" class="input" />
+      </label>
+      <label class="flex flex-col gap-1 md:col-span-1" *ngIf="showPhases">
+        <span class="text-xs text-slate-500">How many phases/sides per block?</span>
+        <input formControlName="phaseSides" type="number" min="1" class="input" />
+      </label>
+      <label class="flex flex-col gap-1 md:col-span-1">
+        <span class="text-xs text-slate-500">How many floors?</span>
+        <input formControlName="floors" type="number" min="0" class="input" />
+      </label>
+      <label class="flex flex-col gap-1 md:col-span-1">
+        <span class="text-xs text-slate-500">How many units per floor?</span>
+        <input formControlName="unitsPerFloor" type="number" min="1" class="input" />
+      </label>
+    </div>
+
+    <!-- Overrides placed after numbers -->
+    <div class="grid gap-3 md:grid-cols-3 mt-2">
+      <label class="flex flex-col gap-1" *ngIf="showBlockControls">
+        <span class="text-xs text-slate-500">Block labels (CSV override)</span>
+        <input formControlName="blockLabels" class="input" placeholder="G,H,J,47,48" />
+      </label>
+      <label class="flex flex-col gap-1" *ngIf="showCustomPrefix">
+        <span class="text-xs text-slate-500">Custom block prefix</span>
+        <input formControlName="blockPrefix" class="input" placeholder="Block" />
+      </label>
+      <label class="flex flex-col gap-1" *ngIf="showPhases">
+        <span class="text-xs text-slate-500">Phases/Sides (CSV)</span>
+        <input formControlName="phasesList" class="input" placeholder="1,2,3,4 or A,B" />
+      </label>
+    </div>
+
+    <!-- Live visual tables preview -->
+    <div class="space-y-4">
+      <p class="text-xs text-slate-500">Preview updates in real time. Example: 5 floors × 5 units with ground shows G1…G5, then 101…105 on each floor.</p>
+      <div class="grid gap-5 md:grid-cols-2" *ngIf="previewBlocks.length > 0">
+        <div *ngFor="let block of previewBlocks" class="rad border border-slate-200 dark:border-slate-700 bg-white/5 p-3">
+          <div class="mb-2 flex items-center justify-between">
+            <span class="text-sm font-semibold text-slate-200" *ngIf="block.label">Block {{ block.label }}</span>
+            <span class="text-xs text-slate-500" *ngIf="!block.label">Single building</span>
+          </div>
+          <table class="w-full text-xs">
+            <thead>
+              <tr>
+                <th class="text-left text-slate-400">Floor</th>
+                <ng-container *ngIf="!block.sides; else sidedHead">
+                  <th class="text-left text-slate-400" *ngFor="let _ of unitSlots">Unit</th>
+                </ng-container>
+                <ng-template #sidedHead>
+                  <th *ngFor="let s of block.sides" class="text-left text-slate-400">Side {{ s }}</th>
+                </ng-template>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let f of block.floors">
+                <td class="py-1 pr-2 text-slate-400">{{ f.label }}</td>
+                <ng-container *ngIf="!block.sides; else sidedCells">
+                  <td class="py-1" *ngFor="let cell of f.cells">
+                    <span class="inline-flex rounded-md border border-slate-700/60 bg-slate-900/60 px-2 py-1">{{ cell }}</span>
+                  </td>
+                </ng-container>
+                <ng-template #sidedCells>
+                  <td class="py-1" *ngFor="let side of f.cells">
+                    <div class="flex flex-wrap gap-1">
+                      <span *ngFor="let cell of side" class="inline-flex rounded-md border border-slate-700/60 bg-slate-900/60 px-2 py-1">{{ cell }}</span>
+                    </div>
+                  </td>
+                </ng-template>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 3: Policies & Review -->
+  <section *ngIf="step()===2" class="space-y-5">
+    <div formGroupName="details" class="grid gap-4">
+      <label class="flex flex-col gap-2">
+        <span class="text-sm text-slate-900 dark:text-slate-200">Occupancy modes</span>
+        <span class="text-xs text-slate-500">Supported lease types: nightly (hotels/BnBs), weekly, monthly, or custom.</span>
+        <input formControlName="occupancyModes" class="input" placeholder="nightly,weekly,monthly" />
+      </label>
+      <label class="flex flex-col gap-2">
+        <span class="text-sm text-slate-900 dark:text-slate-200">Base rates</span>
+        <span class="text-xs text-slate-500">Provide examples per unit type to seed pricing. You can refine per‑unit later.</span>
+        <textarea formControlName="baseRates" rows="2" class="input" placeholder="e.g., Studio KES 6,500 nightly, 1BR KES 120,000 monthly"></textarea>
+      </label>
+      <label class="flex flex-col gap-2">
+        <span class="text-sm text-slate-900 dark:text-slate-200">Amenities</span>
+        <span class="text-xs text-slate-500">Comma‑separated list shown on listings. Mention essentials and standouts.</span>
+        <textarea formControlName="amenities" rows="2" class="input" placeholder="Fiber internet, generator, housekeeping, pool"></textarea>
+      </label>
+    </div>
+
+    <div formGroupName="policies" class="grid gap-4 md:grid-cols-2">
+      <label class="flex flex-col gap-2">
+        <span class="text-sm text-slate-900 dark:text-slate-200">Cancellation policy</span>
+        <textarea formControlName="cancellation" rows="3" class="input" placeholder="Flexible up to 7 days; 50% thereafter"></textarea>
+      </label>
+      <label class="flex flex-col gap-2">
+        <span class="text-sm text-slate-900 dark:text-slate-200">House rules</span>
+        <textarea formControlName="houseRules" rows="3" class="input" placeholder="No smoking indoors; quiet hours 10pm–6am"></textarea>
+      </label>
+    </div>
+  </section>
+
+  <!-- Footer actions -->
+  <div class="flex items-center justify-between pt-2">
+    <div class="flex gap-2">
+      <button type="button" class="pill border px-4 py-2 text-sm" (click)="prev()" [disabled]="step()===0">Back</button>
+      <button type="button" class="pill border px-4 py-2 text-sm" (click)="next()" [disabled]="step()===2">Next</button>
+    </div>
+    <div class="flex gap-2">
+      <button type="button" class="pill px-5 py-2 text-sm font-semibold text-white bg-slate-700/80" (click)="create(true)" [disabled]="!canSaveDraft">{{ saving() ? 'Saving…' : 'Save draft' }}</button>
+      <button type="button" class="pill bg-blue-600/80 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-900/40" (click)="create(false)" [disabled]="saving()">Create</button>
+    </div>
   </div>
 
-  <div formGroupName="location" class="grid gap-4 md:grid-cols-2">
-    <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-900 dark:text-slate-200">Latitude</span>
-      <input formControlName="lat" type="number" step="0.000001" class="input" placeholder="-1.2921" />
-    </label>
-    <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-900 dark:text-slate-200">Longitude</span>
-      <input formControlName="lng" type="number" step="0.000001" class="input" placeholder="36.8219" />
-    </label>
-  </div>
-  <div class="mt-2">
-    <div id="map-picker" class="h-64 w-full rounded-xl border border-slate-200 dark:border-slate-700"></div>
-    <p class="mt-2 text-xs text-slate-500">Click the map to set location. Drag the marker to fine‑tune. Accurate
-      location improves search and routing.</p>
-  </div>
-
-  <div formGroupName="details" class="grid gap-4">
-    <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-900 dark:text-slate-200">Occupancy modes</span><span
-        class="text-xs text-slate-500">Supported lease types: nightly (hotels/BnBs), weekly, monthly, or custom.</span>
-      <input formControlName="occupancyModes" class="input" placeholder="nightly,weekly,monthly" />
-    </label>
-    <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-900 dark:text-slate-200">Base rates</span><span
-        class="text-xs text-slate-500">Provide examples per unit type to seed pricing. You can refine per-unit
-        later.</span>
-      <textarea formControlName="baseRates" rows="2" class="input"
-        placeholder="e.g., Studio KES 6,500 nightly, 1BR KES 120,000 monthly"></textarea>
-    </label>
-    <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-900 dark:text-slate-200">Amenities</span><span
-        class="text-xs text-slate-500">Comma-separated list shown on listings. Mention essentials and standouts.</span>
-      <textarea formControlName="amenities" rows="2" class="input"
-        placeholder="Fiber internet, generator, housekeeping, pool"></textarea>
-    </label>
-  </div>
-  <div class="mt-2">
-    <div id="map-picker" class="h-64 w-full rounded-xl border border-slate-200 dark:border-slate-700"></div>
-    <p class="mt-2 text-xs text-slate-500">Click the map to set location. Drag the marker to fine‑tune. Accurate
-      location improves search and routing.</p>
-  </div>
-
-  <div formGroupName="policies" class="grid gap-4 md:grid-cols-2">
-    <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-900 dark:text-slate-200">Cancellation policy</span>
-      <textarea formControlName="cancellation" rows="3" class="input"></textarea>
-    </label>
-    <label class="flex flex-col gap-2">
-      <span class="text-sm text-slate-900 dark:text-slate-200">House rules</span>
-      <textarea formControlName="houseRules" rows="3" class="input"></textarea>
-    </label>
-  </div>
-
-  <div class="flex items-center justify-between pt-4">
-    <p class="text-xs text-slate-500">Save as draft, then upload at least 5 photos and add units in the workspace before
-      submitting for review.</p><button type="button"
-      class="pill bg-blue-600/80 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-900/40"
-      (click)="create()" [disabled]="saving()">{{ saving() ? 'Saving…' : 'Save draft' }}</button>
-  </div>
   <p *ngIf="error()" class="text-sm text-red-300">{{ error() }}</p>
 </form>
