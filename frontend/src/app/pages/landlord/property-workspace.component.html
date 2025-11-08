@@ -10,8 +10,9 @@
       <span *ngIf="property()?.location?.lat">• {{ property()?.location?.lat }}, {{ property()?.location?.lng }}</span>
       <span *ngIf="property()?.landlordId">• Landlord ID: {{ property()?.landlordId }}</span>
     </div>
-    <div class="mt-3" *ngIf="property()?.id as pid">
+    <div class="mt-3 flex gap-2" *ngIf="property()?.id as pid">
       <a class="pill border px-3 py-1.5 text-xs" [routerLink]="['/landlord/properties', pid, 'edit']">Continue editing in wizard</a>
+      <button type="button" class="pill border border-rose-400/30 text-rose-300 px-3 py-1.5 text-xs" (click)="deleteProperty()">Delete property</button>
     </div>
   </header>
 
@@ -99,33 +100,6 @@
 
   <section class="rad border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-5 space-y-4">
     <div class="flex items-center justify-between">
-      <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Units & floors</h3>
-      <button
-        class="pill border border-slate-200 dark:border-white/10 px-3 py-2 text-sm text-slate-100 hover:bg-white/10"
-        (click)="addUnit()">Add unit</button>
-    </div>
-    <div class="space-y-4" [formGroup]="propertyForm">
-      <div *ngFor="let unit of units.controls; let i = index" [formGroup]="unit"
-        class="rad border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 p-4 space-y-3">
-        <div class="flex items-center justify-between">
-          <h4 class="text-sm font-semibold text-slate-200">Unit {{ i + 1 }}</h4>
-          <button class="text-xs text-red-300" (click)="removeUnit(i)">Remove</button>
-        </div>
-        <div class="grid gap-3 md:grid-cols-3">
-          <input formControlName="displayName" class="input" placeholder="Display name" />
-          <input formControlName="doorNumber" class="input" placeholder="Door / unit number" />
-          <input formControlName="unitType" class="input" placeholder="Unit type" />
-          <input formControlName="block" class="input" placeholder="Block" />
-          <input formControlName="phase" class="input" placeholder="Phase" />
-          <input formControlName="floor" type="number" class="input" placeholder="Floor" />
-          <textarea formControlName="metadata" rows="2" class="input md:col-span-3"
-            placeholder="JSON metadata"></textarea>
-          <textarea formControlName="pricing" rows="2" class="input md:col-span-3"
-            placeholder="JSON pricing"></textarea>
-        </div>
-      </div>
-    </div>
-    <div class="flex items-center justify-between">
       <p class="text-xs text-slate-500" *ngIf="(property()?.media?.length || 0) < mediaRequired()">You currently have {{
         property()?.media?.length || 0 }} photos. Add {{ mediaRequired() - (property()?.media?.length || 0) }} more to
         enable submission.</p>
@@ -139,10 +113,9 @@
   <section class="rad border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-5 space-y-4">
     <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Unit map</h3>
     <div class="flex items-center justify-between gap-3">
-      <div class="text-xs text-slate-500">Click a door to edit. Toggle multi-select to bulk set status.</div>
+      <div class="text-xs text-slate-500">Click a door to select. Use multi-select to bulk set status.</div>
       <div class="flex items-center gap-2">
-        <label class="text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1"><input type="checkbox"
-            (change)="mapMulti = true" /> Multi-select</label>
+        <label class="text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1"><input type="checkbox" [(ngModel)]="mapMulti" /> Multi-select</label>
         <button type="button" class="pill border px-3 py-1 text-xs" (click)="bulkSetStatus('available')">Set
           Available</button>
         <button type="button" class="pill border px-3 py-1 text-xs" (click)="bulkSetStatus('maintenance')">Set
@@ -243,22 +216,9 @@
           </div>
         </form>
       </div>
-      <input [formControl]="selectedForm.controls.displayName" class="input" placeholder="Display name" />
-      <input [formControl]="selectedForm.controls.doorNumber" class="input" placeholder="Door number" />
-      <input [formControl]="selectedForm.controls.unitType" class="input" placeholder="Unit type" />
-      <select [formControl]="selectedForm.controls.status" class="input">
-        <option value="available">Available</option>
-        <option value="occupied">Occupied</option>
-        <option value="maintenance">Maintenance</option>
-        <option value="reserved">Reserved</option>
-      </select>
-      <input [formControl]="selectedForm.controls.maintenanceNote" class="input md:col-span-2"
-        placeholder="Maintenance note" />
-      <div class="md:col-span-2 flex justify-end gap-2">
+      <div class="md:col-span-2 flex justify-end">
         <button type="button" class="pill px-4 py-2 text-sm border border-slate-300 dark:border-slate-700"
           (click)="selectedUnit.set(null)">Close</button>
-        <button type="button" class="pill bg-blue-600/80 px-4 py-2 text-sm font-semibold text-white"
-          (click)="saveSelectedUnit()">Save</button>
       </div>
     </div>
   </section>

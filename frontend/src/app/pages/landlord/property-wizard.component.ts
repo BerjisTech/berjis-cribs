@@ -188,6 +188,21 @@ ngOnInit() {
   next() { this.step.update(s => Math.min(s + 1, 2)); }
   prev() { this.step.update(s => Math.max(s - 1, 0)); setTimeout(() => { if (this.step() === 0) this.ensureMap(); }, 0); }
 
+  // Expose edit mode to template
+  get isEditing() { return !!this.editId; }
+
+  async deleteProperty() {
+    if (!this.editId) return;
+    if (!confirm('Delete this property? All units, media, leases, and payments will be removed.')) return;
+    try {
+      this.saving.set(true);
+      await firstValueFrom(this.cribs.deleteProperty(this.editId));
+      await this.router.navigate(["/landlord"]);
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
   private async ensureMap() {
     this.mapError.set(null);
     try {

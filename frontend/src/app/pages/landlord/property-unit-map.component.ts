@@ -8,7 +8,28 @@ type UnitItem = { id: string; doorNumber: string; status?: string; floor?: numbe
   standalone: true,
   imports: [NgFor, NgIf, NgClass],
   template: `
-  <div *ngIf="mode === 'floor'" class="space-y-3">
+  <div class="space-y-3">
+    <!-- Block tabs when applicable -->
+    <div *ngIf="blockLabels.length > 1 || (blockLabels.length===1 && blockLabels[0] !== '')" class="flex flex-wrap gap-2">
+      <button type="button" class="pill px-3 py-1 text-xs"
+        [ngClass]="{ 'bg-white/10 border-white/20 text-white': activeBlock==='ALL' }"
+        (click)="setActiveBlock('ALL')">All blocks</button>
+      <button *ngFor="let b of blockLabels" type="button" class="pill px-3 py-1 text-xs"
+        [ngClass]="{ 'bg-white/10 border-white/20 text-white': activeBlock===b }"
+        (click)="setActiveBlock(b)">{{ b || '—' }}</button>
+    </div>
+
+    <!-- Phase sub-tabs when a single block selected and phases exist -->
+    <div *ngIf="activeBlock!=='ALL' && phaseLabels(activeBlock).length > 0" class="flex flex-wrap gap-2">
+      <button type="button" class="pill px-3 py-1 text-xs"
+        [ngClass]="{ 'bg-white/10 border-white/20 text-white': activePhase==='ALL' }"
+        (click)="setActivePhase('ALL')">All phases</button>
+      <button *ngFor="let p of phaseLabels(activeBlock)" type="button" class="pill px-3 py-1 text-xs"
+        [ngClass]="{ 'bg-white/10 border-white/20 text-white': activePhase===p }"
+        (click)="setActivePhase(p)">{{ p || '—' }}</button>
+    </div>
+
+    <!-- Floor-grouped grid (default view) -->
     <div *ngIf="floors.length === 0" class="text-sm text-slate-500">No units yet. Use "Generate units" to scaffold.</div>
     <div *ngFor="let f of floors; trackBy: trackFloor" class="border rounded-xl p-3">
       <div class="text-xs uppercase tracking-widest text-slate-500">Floor {{ f === 0 ? 'G' : f }}</div>
@@ -16,14 +37,10 @@ type UnitItem = { id: string; doorNumber: string; status?: string; floor?: numbe
         <button *ngFor="let u of unitsOnFloor(f)"
           class="rounded-md border px-3 py-2 text-sm"
           [ngClass]="classes(u)"
+          [title]="tooltip(u)"
           (click)="toggle(u)">{{ u.doorNumber }}</button>
       </div>
     </div>
-  </div>
-  <div *ngIf="mode !== 'floor'" class="grid gap-2" [style.gridTemplateColumns]="gridCols">
-    <button *ngFor="let u of items" class="rounded-md border px-3 py-2 text-sm" [title]="tooltip(u)" [ngClass]="classes(u)" (click)="toggle(u)">
-      {{ u.doorNumber }}
-    </button>
   </div>
   `,
 })
@@ -37,9 +54,33 @@ export class PropertyUnitMapComponent {
 
   get gridCols() { return `repeat(${this.columns}, minmax(0, 1fr))`; }
 
+  activeBlock: string = 'ALL';
+  activePhase: string = 'ALL';
+
+  get blockLabels(): string[] {
+    const set = new Set<string>();
+    for (const u of this.items) set.add((u.block || '').toString());
+    const list = Array.from(set.values());
+    if (list.length === 1 && list[0] === '') return [];
+    return list.sort();
+  }
+
+  phaseLabels(block: string): string[] {
+    const set = new Set<string>();
+    for (const u of this.items) {
+      if ((u.block || '') === block) set.add(((u as any).phase || '').toString());
+    }
+    const list = Array.from(set.values());
+    if (list.length === 1 && list[0] === '') return [];
+    return list.sort();
+  }
+
+  setActiveBlock(b: string) { this.activeBlock = b; this.activePhase = 'ALL'; }
+  setActivePhase(p: string) { this.activePhase = p; }
+
   get floors(): number[] {
     const set = new Set<number>();
-    for (const u of this.items) {
+    for (const u of this.filteredItems()) {
       const f = (u.floor ?? null);
       if (f === null || f === undefined) continue;
       set.add(f);
@@ -48,7 +89,15 @@ export class PropertyUnitMapComponent {
   }
 
   unitsOnFloor(f: number) {
-    return this.items.filter(u => (u.floor ?? null) === f);
+    return this.filteredItems().filter(u => (u.floor ?? null) === f);
+  }
+
+  private filteredItems(): UnitItem[] {
+    return this.items.filter(u => {
+      const byBlock = (this.activeBlock === 'ALL') || ((u.block || '') === this.activeBlock);
+      const byPhase = (this.activeBlock === 'ALL' || this.activePhase === 'ALL') || ((((u as any).phase || '')) === this.activePhase);
+      return byBlock && byPhase;
+    });
   }
 
   statusClass(status?: string) {
@@ -83,3 +132,4 @@ export class PropertyUnitMapComponent {
 
   trackFloor(_i: number, f: number) { return f; }
 }
+

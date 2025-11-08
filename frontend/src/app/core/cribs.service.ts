@@ -100,6 +100,10 @@ export class CribsService {
       .pipe(map((res) => res.data));
   }
 
+  deleteProperty(id: string) {
+    return this.http.delete<{ success: boolean }>(`${this.base}/v1/landlord/properties/${id}`, { withCredentials: true, ...this.authHeaders() });
+  }
+
   submitProperty(id: string) {
     return this.http.post<{ success: boolean; data: any }>(`${this.base}/v1/landlord/properties/${id}/submit`, {}, { withCredentials: true, ...this.authHeaders() });
   }

@@ -1,11 +1,11 @@
 package server
 
 import (
-    "encoding/json"
-    "os"
-    "time"
+	"encoding/json"
+	"os"
+	"time"
 
-    "github.com/aarondl/null/v8"
+	"github.com/aarondl/null/v8"
 )
 
 const (

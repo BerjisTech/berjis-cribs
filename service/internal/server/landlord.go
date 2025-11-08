@@ -1,18 +1,18 @@
 package server
 
 import (
-    "database/sql"
-    "encoding/json"
-    "errors"
-    "fmt"
-    "path/filepath"
-    "strings"
-    "time"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"time"
 
-    "github.com/berjistech/berjis-ecosystem/cribs/service/internal/auth"
-    "github.com/gofiber/fiber/v2"
-    "github.com/google/uuid"
-    "github.com/jmoiron/sqlx"
+	"github.com/berjistech/berjis-ecosystem/cribs/service/internal/auth"
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 )
 
 type enrollmentPayload struct {
@@ -28,7 +28,7 @@ type enrollmentContactInput struct {
 }
 
 func registerLandlordRoutes(app *fiber.App, deps protectedDeps) {
-    group := app.Group("/v1/landlord")
+	group := app.Group("/v1/landlord")
 
 	group.Get("/enrollments/me", func(c *fiber.Ctx) error {
 		user := auth.UserFromCtx(c)
@@ -70,7 +70,7 @@ func registerLandlordRoutes(app *fiber.App, deps protectedDeps) {
 		return c.JSON(fiber.Map{"success": true, "data": enrollment})
 	})
 
-    group.Post("/enrollments/:id/submit", func(c *fiber.Ctx) error {
+	group.Post("/enrollments/:id/submit", func(c *fiber.Ctx) error {
 		user := auth.UserFromCtx(c)
 		id := strings.TrimSpace(c.Params("id"))
 		if id == "" || !isUUID(id) {
@@ -141,40 +141,40 @@ func registerLandlordRoutes(app *fiber.App, deps protectedDeps) {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "db error"})
 		}
 		return c.JSON(fiber.Map{"success": true, "data": profile})
-    })
+	})
 
-    // Multi-file upload for enrollment documents
-    group.Post("/uploads", func(c *fiber.Ctx) error {
-        user := auth.UserFromCtx(c)
-        mf, err := c.MultipartForm()
-        if err != nil {
-            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "invalid multipart form"})
-        }
-        files := mf.File["files"]
-        if len(files) == 0 {
-            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "no files"})
-        }
-        root := deps.Config.UploadsDirectory
-        if strings.TrimSpace(root) == "" {
-            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "uploads not configured"})
-        }
-        destDir := filepath.Join(root, "cribs", "landlord", user.ID)
-        if err := mkdirAll(destDir); err != nil {
-            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "mkdir failed"})
-        }
-        urls := make([]string, 0, len(files))
-        for _, fh := range files {
-            name := filepath.Base(fh.Filename)
-            safe := fmt.Sprintf("%d_%s", time.Now().UTC().UnixNano(), strings.ReplaceAll(name, " ", "_"))
-            path := filepath.Join(destDir, safe)
-            if err := c.SaveFile(fh, path); err != nil {
-                return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "save failed"})
-            }
-            rel := filepath.ToSlash(filepath.Join("uploads", "cribs", "landlord", user.ID, safe))
-            urls = append(urls, "/"+rel)
-        }
-        return c.JSON(fiber.Map{"success": true, "data": urls})
-    })
+	// Multi-file upload for enrollment documents
+	group.Post("/uploads", func(c *fiber.Ctx) error {
+		user := auth.UserFromCtx(c)
+		mf, err := c.MultipartForm()
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "invalid multipart form"})
+		}
+		files := mf.File["files"]
+		if len(files) == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "no files"})
+		}
+		root := deps.Config.UploadsDirectory
+		if strings.TrimSpace(root) == "" {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "uploads not configured"})
+		}
+		destDir := filepath.Join(root, "cribs", "landlord", user.ID)
+		if err := mkdirAll(destDir); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "mkdir failed"})
+		}
+		urls := make([]string, 0, len(files))
+		for _, fh := range files {
+			name := filepath.Base(fh.Filename)
+			safe := fmt.Sprintf("%d_%s", time.Now().UTC().UnixNano(), strings.ReplaceAll(name, " ", "_"))
+			path := filepath.Join(destDir, safe)
+			if err := c.SaveFile(fh, path); err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "save failed"})
+			}
+			rel := filepath.ToSlash(filepath.Join("uploads", "cribs", "landlord", user.ID, safe))
+			urls = append(urls, "/"+rel)
+		}
+		return c.JSON(fiber.Map{"success": true, "data": urls})
+	})
 }
 
 func findLatestEnrollment(db *sqlx.DB, userID string) (LandlordEnrollment, error) {

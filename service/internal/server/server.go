@@ -1,15 +1,15 @@
 package server
 
 import (
-    "net/http"
-    "time"
+	"net/http"
+	"time"
 
-    "github.com/berjistech/berjis-ecosystem/cribs/service/internal/auth"
-    "github.com/berjistech/berjis-ecosystem/cribs/service/internal/config"
-    "github.com/gofiber/fiber/v2"
-    "github.com/gofiber/fiber/v2/middleware/cors"
-    "github.com/gofiber/fiber/v2/middleware/limiter"
-    "github.com/jmoiron/sqlx"
+	"github.com/berjistech/berjis-ecosystem/cribs/service/internal/auth"
+	"github.com/berjistech/berjis-ecosystem/cribs/service/internal/config"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
+	"github.com/jmoiron/sqlx"
 )
 
 type Options struct {
@@ -28,14 +28,14 @@ func (o Options) httpClient() *http.Client {
 }
 
 func New(opts Options) *fiber.App {
-    app := fiber.New()
+	app := fiber.New()
 
-    app.Use(cors.New(cors.Config{
-        AllowOrigins:     opts.Config.AllowedOrigins,
-        AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-        AllowHeaders:     "Authorization,Content-Type,Accept,X-User-UUID,X-User-Roles",
-        AllowCredentials: true,
-    }))
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     opts.Config.AllowedOrigins,
+		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		AllowHeaders:     "Authorization,Content-Type,Accept,X-User-UUID,X-User-Roles",
+		AllowCredentials: true,
+	}))
 
 	// Health
 	app.Get("/v1/health", func(c *fiber.Ctx) error {
@@ -52,15 +52,15 @@ func New(opts Options) *fiber.App {
 		Config:     opts.Config,
 		HTTPClient: opts.httpClient(),
 	}
-    registerPublicRoutes(app, publicDeps)
-    registerPublicUnitStatusRoutes(app, publicDeps)
+	registerPublicRoutes(app, publicDeps)
+	registerPublicUnitStatusRoutes(app, publicDeps)
 
-    app.Use(auth.Middleware(auth.Options{HS256Secret: opts.Config.AuthHS256Secret, Env: opts.Config.Env}))
+	app.Use(auth.Middleware(auth.Options{HS256Secret: opts.Config.AuthHS256Secret, Env: opts.Config.Env}))
 
-    // Serve uploaded files (e.g., compliance documents) if configured
-    if opts.Config.UploadsDirectory != "" {
-        app.Static("/uploads", opts.Config.UploadsDirectory)
-    }
+	// Serve uploaded files (e.g., compliance documents) if configured
+	if opts.Config.UploadsDirectory != "" {
+		app.Static("/uploads", opts.Config.UploadsDirectory)
+	}
 
 	protected := protectedDeps{
 		publicDeps: publicDeps,
@@ -70,7 +70,7 @@ func New(opts Options) *fiber.App {
 	registerPropertyRoutes(app, protected)
 	registerTenantRoutes(app, protected)
 	registerLeaseRoutes(app, protected)
-    registerReceiptRoutes(app, protected)
+	registerReceiptRoutes(app, protected)
 	registerAdminRoutes(app, protected)
 	registerSupportRoutes(app, protected)
 

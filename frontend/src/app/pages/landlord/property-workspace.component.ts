@@ -1,4 +1,5 @@
 import { NgClass, NgFor, NgIf } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 import { Component, OnInit, inject, signal } from "@angular/core";
 import { FormArray, FormBuilder, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute } from "@angular/router";
@@ -14,7 +15,7 @@ import { generatePreview, NumberingConfig } from './numbering-preview.util';
 @Component({
   selector: "app-property-workspace",
   standalone: true,
-  imports: [ReactiveFormsModule, NgFor, NgIf, NgClass, PropertyUnitMapComponent, NumberingEditorComponent],
+  imports: [ReactiveFormsModule, FormsModule, NgFor, NgIf, NgClass, PropertyUnitMapComponent, NumberingEditorComponent],
   templateUrl: "./property-workspace.component.html",
   styleUrl: "./property-workspace.component.css",
 })
@@ -117,6 +118,21 @@ export class PropertyWorkspaceComponent implements OnInit {
     // Attach preview renderer for generate form
     this.generateForm.valueChanges.subscribe(() => this.renderGeneratePreview());
     this.renderGeneratePreview();
+  }
+
+  async deleteProperty() {
+    const p = this.property();
+    if (!p?.id) return;
+    if (!confirm('Delete this property? All units, media, leases, and payments will be removed.')) return;
+    this.saving.set(true);
+    try {
+      await firstValueFrom(this.cribs.deleteProperty(p.id));
+      // navigate back to landlord dashboard
+      // We don’t inject Router here; redirect via location as a minimal change
+      window.location.href = '/landlord';
+    } finally {
+      this.saving.set(false);
+    }
   }
 
   get units(): FormArray {

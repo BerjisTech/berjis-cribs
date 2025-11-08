@@ -46,57 +46,57 @@ const userKey contextKey = "cribs.user"
 var errUnauthorized = errors.New("unauthorized")
 
 func Middleware(opts Options) fiber.Handler {
-    return func(c *fiber.Ctx) error {
-        raw := c.Get("Authorization")
-        if raw == "" {
-            if cookie := c.Cookies("access"); cookie != "" {
-                raw = cookie
-            }
-        }
-        user, err := parseUser(raw, opts)
-        if err != nil {
-            // Fallback: accept X-User-UUID header when it contains a plausible UUID.
-            // In development, accept any non-empty value to ease local testing.
-            if id := strings.TrimSpace(c.Get("X-User-UUID")); id != "" {
-                // basic sanity: UUID-like format is 36 chars with dashes
-                if opts.Env == "development" || len(id) == 36 {
-                    user = &User{ID: id, Email: c.Get("X-User-Email")}
-                    err = nil
-                }
-            }
-        }
-        // Merge roles from X-User-Roles header (comma separated) to support header-based authorization.
-        if user != nil {
-            rolesHeader := strings.TrimSpace(c.Get("X-User-Roles"))
-            if rolesHeader != "" {
-                parts := strings.Split(rolesHeader, ",")
-                // build a set from existing roles (lowercased) for de-duplication
-                seen := make(map[string]struct{}, len(user.Roles))
-                for _, r := range user.Roles {
-                    lr := strings.ToLower(strings.TrimSpace(r))
-                    if lr == "" {
-                        continue
-                    }
-                    seen[lr] = struct{}{}
-                }
-                for _, p := range parts {
-                    rp := strings.ToLower(strings.TrimSpace(p))
-                    if rp == "" {
-                        continue
-                    }
-                    if _, ok := seen[rp]; !ok {
-                        user.Roles = append(user.Roles, rp)
-                        seen[rp] = struct{}{}
-                    }
-                }
-            }
-        }
-        if err != nil || user == nil || user.ID == "" {
-            return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"success": false, "message": "login required"})
-        }
-        c.Locals(userKey, *user)
-        return c.Next()
-    }
+	return func(c *fiber.Ctx) error {
+		raw := c.Get("Authorization")
+		if raw == "" {
+			if cookie := c.Cookies("access"); cookie != "" {
+				raw = cookie
+			}
+		}
+		user, err := parseUser(raw, opts)
+		if err != nil {
+			// Fallback: accept X-User-UUID header when it contains a plausible UUID.
+			// In development, accept any non-empty value to ease local testing.
+			if id := strings.TrimSpace(c.Get("X-User-UUID")); id != "" {
+				// basic sanity: UUID-like format is 36 chars with dashes
+				if opts.Env == "development" || len(id) == 36 {
+					user = &User{ID: id, Email: c.Get("X-User-Email")}
+					err = nil
+				}
+			}
+		}
+		// Merge roles from X-User-Roles header (comma separated) to support header-based authorization.
+		if user != nil {
+			rolesHeader := strings.TrimSpace(c.Get("X-User-Roles"))
+			if rolesHeader != "" {
+				parts := strings.Split(rolesHeader, ",")
+				// build a set from existing roles (lowercased) for de-duplication
+				seen := make(map[string]struct{}, len(user.Roles))
+				for _, r := range user.Roles {
+					lr := strings.ToLower(strings.TrimSpace(r))
+					if lr == "" {
+						continue
+					}
+					seen[lr] = struct{}{}
+				}
+				for _, p := range parts {
+					rp := strings.ToLower(strings.TrimSpace(p))
+					if rp == "" {
+						continue
+					}
+					if _, ok := seen[rp]; !ok {
+						user.Roles = append(user.Roles, rp)
+						seen[rp] = struct{}{}
+					}
+				}
+			}
+		}
+		if err != nil || user == nil || user.ID == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"success": false, "message": "login required"})
+		}
+		c.Locals(userKey, *user)
+		return c.Next()
+	}
 }
 
 func parseUser(raw string, opts Options) (*User, error) {

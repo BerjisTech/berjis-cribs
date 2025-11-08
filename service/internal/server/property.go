@@ -51,45 +51,45 @@ type unitInput struct {
 }
 
 type unitsPayload struct {
-    Units []unitInput `json:"units"`
+	Units []unitInput `json:"units"`
 }
 
 // Unit generation input for bulk creation from a structured scheme
 type unitGenerationInput struct {
-    // addressType: simple | block | floor | hybrid | standalone
-    AddressType   string   `json:"addressType"`
-    // totalUnits: used for simple/standalone
-    TotalUnits    int      `json:"totalUnits"`
-    // blocks to generate (for block/hybrid)
-    Blocks        []string `json:"blocks"`
-    // phases optional for hybrid
-    Phases        []string `json:"phases"`
-    // floors to generate (for floor/hybrid)
-    Floors        int      `json:"floors"`
-    // whether to include ground level labelled 'G'
-    IncludeGround bool     `json:"includeGround"`
-    // number of units per floor (floor/hybrid)
-    UnitsPerFloor int      `json:"unitsPerFloor"`
-    // optional unit type label to set
-    UnitType      string   `json:"unitType"`
-    // default status (available/draft/maintenance/etc.)
-    DefaultStatus string   `json:"defaultStatus"`
-    // optional per-floor counts (index 0 is ground when IncludeGround=true, otherwise floor 1)
-    PerFloorCounts []int                `json:"perFloorCounts"`
-    // optional per-block per-floor counts map
-    PerBlockPerFloor map[string][]int   `json:"perBlockPerFloor"`
-    // Extended numbering options (frontend may send; server should honor when present)
-    DoorScheme     string  `json:"doorScheme"`      // simple_numeric | simple_alpha | floor_numeric | floor_alpha
-    FloorLabelKind string  `json:"floorLabelKind"`  // numeric | alpha
-    BlockDigits    int     `json:"blockDigits"`
-    PhaseDigits    int     `json:"phaseDigits"`
-    FloorDigits    int     `json:"floorDigits"`
-    DoorDigits     int     `json:"doorDigits"`
-    GroundStyle    string  `json:"groundStyle"`      // 'g' | '00'
+	// addressType: simple | block | floor | hybrid | standalone
+	AddressType string `json:"addressType"`
+	// totalUnits: used for simple/standalone
+	TotalUnits int `json:"totalUnits"`
+	// blocks to generate (for block/hybrid)
+	Blocks []string `json:"blocks"`
+	// phases optional for hybrid
+	Phases []string `json:"phases"`
+	// floors to generate (for floor/hybrid)
+	Floors int `json:"floors"`
+	// whether to include ground level labelled 'G'
+	IncludeGround bool `json:"includeGround"`
+	// number of units per floor (floor/hybrid)
+	UnitsPerFloor int `json:"unitsPerFloor"`
+	// optional unit type label to set
+	UnitType string `json:"unitType"`
+	// default status (available/draft/maintenance/etc.)
+	DefaultStatus string `json:"defaultStatus"`
+	// optional per-floor counts (index 0 is ground when IncludeGround=true, otherwise floor 1)
+	PerFloorCounts []int `json:"perFloorCounts"`
+	// optional per-block per-floor counts map
+	PerBlockPerFloor map[string][]int `json:"perBlockPerFloor"`
+	// Extended numbering options (frontend may send; server should honor when present)
+	DoorScheme     string `json:"doorScheme"`     // simple_numeric | simple_alpha | floor_numeric | floor_alpha
+	FloorLabelKind string `json:"floorLabelKind"` // numeric | alpha
+	BlockDigits    int    `json:"blockDigits"`
+	PhaseDigits    int    `json:"phaseDigits"`
+	FloorDigits    int    `json:"floorDigits"`
+	DoorDigits     int    `json:"doorDigits"`
+	GroundStyle    string `json:"groundStyle"` // 'g' | '00'
 }
 
 func registerPropertyRoutes(app *fiber.App, deps protectedDeps) {
-    group := app.Group("/v1/landlord")
+	group := app.Group("/v1/landlord")
 
 	group.Get("/properties", func(c *fiber.Ctx) error {
 		user := auth.UserFromCtx(c)
@@ -146,6 +146,52 @@ func registerPropertyRoutes(app *fiber.App, deps protectedDeps) {
 			prop.Units = units
 		}
 		return c.JSON(fiber.Map{"success": true, "data": prop})
+	})
+
+	// Delete a property (cascade removes units, media, leases, payments via FKs)
+	group.Delete("/properties/:id", func(c *fiber.Ctx) error {
+		user := auth.UserFromCtx(c)
+		propertyID := c.Params("id")
+		if !isUUID(propertyID) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "invalid property id"})
+		}
+		landlord, err := landlordForUser(deps.db(), user.ID)
+		if err != nil {
+			if errors.Is(err, errLandlordNotFound) {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"success": false, "message": "landlord profile required"})
+			}
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "db error"})
+		}
+		ok, err := landlordOwnsProperty(deps.db(), propertyID, landlord.ID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "ownership check failed"})
+		}
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"success": false, "message": "forbidden"})
+		}
+		tx, err := deps.db().Beginx()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "transaction error"})
+		}
+		defer tx.Rollback()
+		// Lock row to avoid races, then delete
+		var exists bool
+		if err := tx.Get(&exists, `SELECT EXISTS(SELECT 1 FROM properties WHERE id=$1 AND landlord_id=$2 FOR UPDATE)`, propertyID, landlord.ID); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "db error"})
+		}
+		if !exists {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"success": false, "message": "property not found"})
+		}
+		if _, err := tx.Exec(`DELETE FROM properties WHERE id=$1 AND landlord_id=$2`, propertyID, landlord.ID); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "delete failed"})
+		}
+		if err := appendAudit(tx, landlord.ID, propertyID, "", user.ID, "property.deleted", fiber.Map{}); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "audit failed"})
+		}
+		if err := tx.Commit(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "commit failed"})
+		}
+		return c.JSON(fiber.Map{"success": true})
 	})
 
 	group.Post("/properties", func(c *fiber.Ctx) error {
@@ -209,50 +255,54 @@ func registerPropertyRoutes(app *fiber.App, deps protectedDeps) {
 		return c.JSON(fiber.Map{"success": true, "data": prop})
 	})
 
-    // Generate units for a property based on a numbering scheme.
-    group.Post("/properties/:id/units/generate", func(c *fiber.Ctx) error {
-        user := auth.UserFromCtx(c)
-        propertyID := c.Params("id")
-        if !isUUID(propertyID) {
-            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "invalid property id"})
-        }
-        landlord, err := landlordForUser(deps.db(), user.ID)
-        if err != nil {
-            if errors.Is(err, errLandlordNotFound) {
-                return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"success": false, "message": "landlord profile required"})
-            }
-            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "db error"})
-        }
+	// Generate units for a property based on a numbering scheme.
+	group.Post("/properties/:id/units/generate", func(c *fiber.Ctx) error {
+		user := auth.UserFromCtx(c)
+		propertyID := c.Params("id")
+		if !isUUID(propertyID) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "invalid property id"})
+		}
+		landlord, err := landlordForUser(deps.db(), user.ID)
+		if err != nil {
+			if errors.Is(err, errLandlordNotFound) {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"success": false, "message": "landlord profile required"})
+			}
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "db error"})
+		}
 
-        // Ensure property belongs to landlord
-        var exists bool
-        if err := deps.db().Get(&exists, `SELECT EXISTS(SELECT 1 FROM properties WHERE id=$1 AND landlord_id=$2)`, propertyID, landlord.ID); err != nil || !exists {
-            return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"success": false, "message": "property not found"})
-        }
+		// Ensure property belongs to landlord
+		var exists bool
+		if err := deps.db().Get(&exists, `SELECT EXISTS(SELECT 1 FROM properties WHERE id=$1 AND landlord_id=$2)`, propertyID, landlord.ID); err != nil || !exists {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"success": false, "message": "property not found"})
+		}
 
-        var body unitGenerationInput
-        if err := c.BodyParser(&body); err != nil {
-            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "invalid payload"})
-        }
-        // reasonable defaults
-        if body.DefaultStatus == "" { body.DefaultStatus = "available" }
-        if body.UnitType == "" { body.UnitType = "apartment" }
+		var body unitGenerationInput
+		if err := c.BodyParser(&body); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "invalid payload"})
+		}
+		// reasonable defaults
+		if body.DefaultStatus == "" {
+			body.DefaultStatus = "available"
+		}
+		if body.UnitType == "" {
+			body.UnitType = "apartment"
+		}
 
-        units := generateUnits(body)
-        if len(units) == 0 {
-            return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "no units generated"})
-        }
+		units := generateUnits(body)
+		if len(units) == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "no units generated"})
+		}
 
-        tx, err := deps.db().Beginx()
-        if err != nil {
-            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "transaction error"})
-        }
-        defer tx.Rollback()
+		tx, err := deps.db().Beginx()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "transaction error"})
+		}
+		defer tx.Rollback()
 
-        // insert generated units
-        for _, u := range units {
-            meta, price, _ := serializeUnitPayloads(u)
-            _, err := tx.Exec(`INSERT INTO property_units
+		// insert generated units
+		for _, u := range units {
+			meta, price, _ := serializeUnitPayloads(u)
+			_, err := tx.Exec(`INSERT INTO property_units
                 (id, property_id, address_type, structure_label, block, phase, floor, door_number, display_name, unit_type, status, maintenance_note, metadata_json, pricing_json)
                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
                 ON CONFLICT (id) DO UPDATE SET
@@ -263,18 +313,18 @@ func registerPropertyRoutes(app *fiber.App, deps protectedDeps) {
                     unit_type=EXCLUDED.unit_type, status=EXCLUDED.status,
                     maintenance_note=EXCLUDED.maintenance_note,
                     metadata_json=EXCLUDED.metadata_json, pricing_json=EXCLUDED.pricing_json`,
-                uuid.New().String(), propertyID, u.AddressType, u.Structure, u.Block, u.Phase, nullableInt(u.Floor), u.DoorNumber, u.DisplayName, u.UnitType, defaultUnitStatus(u.Status), u.Maintenance, meta, price,
-            )
-            if err != nil {
-                return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "insert failed"})
-            }
-        }
+				uuid.New().String(), propertyID, u.AddressType, u.Structure, u.Block, u.Phase, nullableInt(u.Floor), u.DoorNumber, u.DisplayName, u.UnitType, defaultUnitStatus(u.Status), u.Maintenance, meta, price,
+			)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "insert failed"})
+			}
+		}
 
-        if err := tx.Commit(); err != nil {
-            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "commit failed"})
-        }
-        return c.JSON(fiber.Map{"success": true})
-    })
+		if err := tx.Commit(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "commit failed"})
+		}
+		return c.JSON(fiber.Map{"success": true})
+	})
 
 	group.Put("/properties/:id", func(c *fiber.Ctx) error {
 		user := auth.UserFromCtx(c)
@@ -653,49 +703,49 @@ type serializedPropertyPayloads struct {
 }
 
 func serializePropertyPayloads(input propertyInput) (serializedPropertyPayloads, error) {
-    var result serializedPropertyPayloads
-    if input.Address != nil {
-        b, err := json.Marshal(input.Address)
-        if err != nil {
-            return result, errors.New("address invalid json structure")
-        }
-        result.Address = b
-    }
-    if input.Location != nil {
-        b, err := json.Marshal(input.Location)
-        if err != nil {
-            return result, errors.New("location invalid json structure")
-        }
-        result.Location = b
-    }
-    if input.Details != nil {
-        b, err := json.Marshal(input.Details)
-        if err != nil {
-            return result, errors.New("details invalid json structure")
-        }
-        result.Details = b
-    }
-    // Ensure amenities_json is never NULL (column has NOT NULL constraint)
-    if input.Amenities != nil {
-        b, err := json.Marshal(input.Amenities)
-        if err != nil {
-            return result, errors.New("amenities invalid json structure")
-        }
-        result.Amenities = b
-    } else {
-        result.Amenities = json.RawMessage("[]")
-    }
-    // Prefer non‑null policies JSON as well (empty object by default)
-    if input.Policies != nil {
-        b, err := json.Marshal(input.Policies)
-        if err != nil {
-            return result, errors.New("policies invalid json structure")
-        }
-        result.Policies = b
-    } else {
-        result.Policies = json.RawMessage("{}")
-    }
-    return result, nil
+	var result serializedPropertyPayloads
+	if input.Address != nil {
+		b, err := json.Marshal(input.Address)
+		if err != nil {
+			return result, errors.New("address invalid json structure")
+		}
+		result.Address = b
+	}
+	if input.Location != nil {
+		b, err := json.Marshal(input.Location)
+		if err != nil {
+			return result, errors.New("location invalid json structure")
+		}
+		result.Location = b
+	}
+	if input.Details != nil {
+		b, err := json.Marshal(input.Details)
+		if err != nil {
+			return result, errors.New("details invalid json structure")
+		}
+		result.Details = b
+	}
+	// Ensure amenities_json is never NULL (column has NOT NULL constraint)
+	if input.Amenities != nil {
+		b, err := json.Marshal(input.Amenities)
+		if err != nil {
+			return result, errors.New("amenities invalid json structure")
+		}
+		result.Amenities = b
+	} else {
+		result.Amenities = json.RawMessage("[]")
+	}
+	// Prefer non‑null policies JSON as well (empty object by default)
+	if input.Policies != nil {
+		b, err := json.Marshal(input.Policies)
+		if err != nil {
+			return result, errors.New("policies invalid json structure")
+		}
+		result.Policies = b
+	} else {
+		result.Policies = json.RawMessage("{}")
+	}
+	return result, nil
 }
 
 func validatePropertyInput(input propertyInput) error {
@@ -804,199 +854,262 @@ func defaultUnitStatus(status string) string {
 
 // generateUnits builds unitInput slices for the given generation input.
 func generateUnits(in unitGenerationInput) []unitInput {
-    // helpers
-    alphaLabel := func(n int) string {
-        if n <= 0 { return "" }
-        out := ""
-        for n > 0 {
-            n--
-            out = string(rune('A'+(n%26))) + out
-            n /= 26
-        }
-        return out
-    }
-    zpad := func(n, w int) string { if w < 1 { w = 1 }; return fmt.Sprintf("%0*d", w, n) }
+	// helpers
+	alphaLabel := func(n int) string {
+		if n <= 0 {
+			return ""
+		}
+		out := ""
+		for n > 0 {
+			n--
+			out = string(rune('A'+(n%26))) + out
+			n /= 26
+		}
+		return out
+	}
+	zpad := func(n, w int) string {
+		if w < 1 {
+			w = 1
+		}
+		return fmt.Sprintf("%0*d", w, n)
+	}
 
-    // sanitize options
-    dd := in.DoorDigits; if dd <= 0 { dd = 1 }
-    fd := in.FloorDigits; if fd <= 0 { fd = 1 }
-    doorScheme := strings.TrimSpace(strings.ToLower(in.DoorScheme))
-    if doorScheme == "" { doorScheme = "floor_numeric" }
-    floorKind := strings.TrimSpace(strings.ToLower(in.FloorLabelKind))
-    if floorKind == "" { floorKind = "numeric" }
-    groundStyle := strings.TrimSpace(strings.ToLower(in.GroundStyle))
-    if groundStyle == "" { groundStyle = "g" }
+	// sanitize options
+	dd := in.DoorDigits
+	if dd <= 0 {
+		dd = 1
+	}
+	fd := in.FloorDigits
+	if fd <= 0 {
+		fd = 1
+	}
+	doorScheme := strings.TrimSpace(strings.ToLower(in.DoorScheme))
+	if doorScheme == "" {
+		doorScheme = "floor_numeric"
+	}
+	floorKind := strings.TrimSpace(strings.ToLower(in.FloorLabelKind))
+	if floorKind == "" {
+		floorKind = "numeric"
+	}
+	groundStyle := strings.TrimSpace(strings.ToLower(in.GroundStyle))
+	if groundStyle == "" {
+		groundStyle = "g"
+	}
 
-    out := []unitInput{}
-    at := strings.ToLower(strings.TrimSpace(in.AddressType))
+	out := []unitInput{}
+	at := strings.ToLower(strings.TrimSpace(in.AddressType))
 
-    // simple label builders
-    makeSeq := func(idx int) string {
-        if doorScheme == "simple_alpha" { return alphaLabel(idx) }
-        return zpad(idx, dd)
-    }
-    // floor + unit label builder respecting alpha/numeric floors and door schemes
-    floorDoor := func(floorIdx int, unitIdx int) string {
-        if doorScheme == "floor_alpha" {
-            // alpha doors per floor
-            d := alphaLabel(unitIdx)
-            if floorKind == "alpha" {
-                // A + A, B + A, ...
-                fl := alphaLabel(floorIdx)
-                if floorIdx == 0 { fl = "A" } // ground => A
-                return fl + d
-            }
-            if floorIdx == 0 {
-                return "g" + d
-            }
-            return fmt.Sprintf("%d%s", floorIdx, d)
-        }
-        // numeric doors
-        if floorKind == "alpha" {
-            fl := alphaLabel(floorIdx)
-            if floorIdx == 0 { fl = "A" }
-            return fl + zpad(unitIdx, dd)
-        }
-        // numeric floors
-        if floorIdx == 0 {
-            if groundStyle == "00" { return zpad(unitIdx, maxInt(2, dd)) }
-            return "g" + zpad(unitIdx, dd)
-        }
-        return zpad(floorIdx, fd) + zpad(unitIdx, dd)
-    }
+	// simple label builders
+	makeSeq := func(idx int) string {
+		if doorScheme == "simple_alpha" {
+			return alphaLabel(idx)
+		}
+		return zpad(idx, dd)
+	}
+	// floor + unit label builder respecting alpha/numeric floors and door schemes
+	floorDoor := func(floorIdx int, unitIdx int) string {
+		if doorScheme == "floor_alpha" {
+			// alpha doors per floor
+			d := alphaLabel(unitIdx)
+			if floorKind == "alpha" {
+				// A + A, B + A, ...
+				fl := alphaLabel(floorIdx)
+				if floorIdx == 0 {
+					fl = "A"
+				} // ground => A
+				return fl + d
+			}
+			if floorIdx == 0 {
+				return "g" + d
+			}
+			return fmt.Sprintf("%d%s", floorIdx, d)
+		}
+		// numeric doors
+		if floorKind == "alpha" {
+			fl := alphaLabel(floorIdx)
+			if floorIdx == 0 {
+				fl = "A"
+			}
+			return fl + zpad(unitIdx, dd)
+		}
+		// numeric floors
+		if floorIdx == 0 {
+			if groundStyle == "00" {
+				return zpad(unitIdx, maxInt(2, dd))
+			}
+			return "g" + zpad(unitIdx, dd)
+		}
+		return zpad(floorIdx, fd) + zpad(unitIdx, dd)
+	}
 
-    // floor counts helper (returns counts including optional ground as first index)
-    floorCounts := func(floors, per int, includeGround bool, overrides []int) []int {
-        counts := []int{}
-        if len(overrides) > 0 {
-            counts = append(counts, overrides...)
-            if includeGround && len(overrides) == floors {
-                // prepend default ground when caller forgot to include ground index
-                counts = append([]int{per}, counts...)
-            }
-            return counts
-        }
-        if includeGround { counts = append(counts, per) }
-        for i := 0; i < floors; i++ { counts = append(counts, per) }
-        return counts
-    }
+	// floor counts helper (returns counts including optional ground as first index)
+	floorCounts := func(floors, per int, includeGround bool, overrides []int) []int {
+		counts := []int{}
+		if len(overrides) > 0 {
+			counts = append(counts, overrides...)
+			if includeGround && len(overrides) == floors {
+				// prepend default ground when caller forgot to include ground index
+				counts = append([]int{per}, counts...)
+			}
+			return counts
+		}
+		if includeGround {
+			counts = append(counts, per)
+		}
+		for i := 0; i < floors; i++ {
+			counts = append(counts, per)
+		}
+		return counts
+	}
 
-    switch at {
-    case "standalone":
-        dn := makeSeq(1)
-        out = append(out, unitInput{AddressType: "standalone", DoorNumber: dn, DisplayName: "Unit " + dn, UnitType: in.UnitType, Status: in.DefaultStatus})
-    case "simple":
-        n := in.TotalUnits
-        if n <= 0 { n = 1 }
-        for i := 1; i <= n; i++ {
-            dn := makeSeq(i)
-            out = append(out, unitInput{AddressType: "simple", DoorNumber: dn, DisplayName: "Unit " + dn, UnitType: in.UnitType, Status: in.DefaultStatus})
-        }
-    case "block":
-        if len(in.Blocks) == 0 { in.Blocks = []string{"A"} }
-        per := in.TotalUnits
-        if per <= 0 { per = 4 }
-        for _, b := range in.Blocks {
-            b = strings.TrimSpace(b)
-            for u := 1; u <= per; u++ {
-                dn := b + makeSeq(u)
-                out = append(out, unitInput{AddressType: "block", Block: b, DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
-            }
-        }
-    case "floor":
-        floors := in.Floors
-        if floors <= 0 { floors = 4 }
-        per := in.UnitsPerFloor
-        if per <= 0 { per = 4 }
-        counts := floorCounts(floors, per, in.IncludeGround, in.PerFloorCounts)
-        idx := 0
-        if in.IncludeGround {
-            pg := counts[idx]; if pg <= 0 { pg = 1 }
-            for u := 1; u <= pg; u++ {
-                dn := floorDoor(0, u)
-                out = append(out, unitInput{AddressType: "floor", Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
-            }
-            idx++
-        }
-        for f := 1; f <= floors; f++ {
-            pf := per
-            if idx < len(counts) && counts[idx] > 0 { pf = counts[idx] }
-            for u := 1; u <= pf; u++ {
-                dn := floorDoor(f, u)
-                out = append(out, unitInput{AddressType: "floor", Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
-            }
-            idx++
-        }
-    case "hybrid":
-        if len(in.Blocks) == 0 { in.Blocks = []string{"A"} }
-        floors := in.Floors
-        if floors <= 0 { floors = 4 }
-        per := in.UnitsPerFloor
-        if per <= 0 { per = 4 }
-        for _, b := range in.Blocks {
-            b = strings.TrimSpace(b)
-            counts := []int{}
-            if bc, ok := in.PerBlockPerFloor[strings.ToUpper(b)]; ok && len(bc) > 0 {
-                counts = append(counts, bc...)
-            }
-            if len(in.Phases) == 0 {
-                // block only
-                c := floorCounts(floors, per, in.IncludeGround, counts)
-                idx := 0
-                if in.IncludeGround {
-                    pg := c[idx]; if pg <= 0 { pg = per }
-                    for u := 1; u <= pg; u++ {
-                        dn := b + floorDoor(0, u)
-                        out = append(out, unitInput{AddressType: "hybrid", Block: b, Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
-                    }
-                    idx++
-                }
-                for f := 1; f <= floors; f++ {
-                    pf := per
-                    if idx < len(c) && c[idx] > 0 { pf = c[idx] }
-                    for u := 1; u <= pf; u++ {
-                        dn := b + floorDoor(f, u)
-                        out = append(out, unitInput{AddressType: "hybrid", Block: b, Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
-                    }
-                    idx++
-                }
-            } else {
-                for _, p := range in.Phases {
-                    p = strings.TrimSpace(p)
-                    prefix := b + p
-                    c := floorCounts(floors, per, in.IncludeGround, counts)
-                    idx := 0
-                    if in.IncludeGround {
-                        pg := c[idx]; if pg <= 0 { pg = per }
-                        for u := 1; u <= pg; u++ {
-                            dn := prefix + floorDoor(0, u)
-                            out = append(out, unitInput{AddressType: "hybrid", Block: b, Phase: p, Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
-                        }
-                        idx++
-                    }
-                    for f := 1; f <= floors; f++ {
-                        pf := per
-                        if idx < len(c) && c[idx] > 0 { pf = c[idx] }
-                        for u := 1; u <= pf; u++ {
-                            dn := prefix + floorDoor(f, u)
-                            out = append(out, unitInput{AddressType: "hybrid", Block: b, Phase: p, Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
-                        }
-                        idx++
-                    }
-                }
-            }
-        }
-    default:
-        n := in.TotalUnits
-        if n <= 0 { n = 1 }
-        for i := 1; i <= n; i++ {
-            dn := makeSeq(i)
-            out = append(out, unitInput{AddressType: "simple", DoorNumber: dn, DisplayName: "Unit " + dn, UnitType: in.UnitType, Status: in.DefaultStatus})
-        }
-    }
-    return out
+	switch at {
+	case "standalone":
+		dn := makeSeq(1)
+		out = append(out, unitInput{AddressType: "standalone", DoorNumber: dn, DisplayName: "Unit " + dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+	case "simple":
+		n := in.TotalUnits
+		if n <= 0 {
+			n = 1
+		}
+		for i := 1; i <= n; i++ {
+			dn := makeSeq(i)
+			out = append(out, unitInput{AddressType: "simple", DoorNumber: dn, DisplayName: "Unit " + dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+		}
+	case "block":
+		if len(in.Blocks) == 0 {
+			in.Blocks = []string{"A"}
+		}
+		per := in.TotalUnits
+		if per <= 0 {
+			per = 4
+		}
+		for _, b := range in.Blocks {
+			b = strings.TrimSpace(b)
+			for u := 1; u <= per; u++ {
+				dn := b + makeSeq(u)
+				out = append(out, unitInput{AddressType: "block", Block: b, DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+			}
+		}
+	case "floor":
+		floors := in.Floors
+		if floors <= 0 {
+			floors = 4
+		}
+		per := in.UnitsPerFloor
+		if per <= 0 {
+			per = 4
+		}
+		counts := floorCounts(floors, per, in.IncludeGround, in.PerFloorCounts)
+		idx := 0
+		if in.IncludeGround {
+			pg := counts[idx]
+			if pg <= 0 {
+				pg = 1
+			}
+			for u := 1; u <= pg; u++ {
+				dn := floorDoor(0, u)
+				out = append(out, unitInput{AddressType: "floor", Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+			}
+			idx++
+		}
+		for f := 1; f <= floors; f++ {
+			pf := per
+			if idx < len(counts) && counts[idx] > 0 {
+				pf = counts[idx]
+			}
+			for u := 1; u <= pf; u++ {
+				dn := floorDoor(f, u)
+				out = append(out, unitInput{AddressType: "floor", Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+			}
+			idx++
+		}
+	case "hybrid":
+		if len(in.Blocks) == 0 {
+			in.Blocks = []string{"A"}
+		}
+		floors := in.Floors
+		if floors <= 0 {
+			floors = 4
+		}
+		per := in.UnitsPerFloor
+		if per <= 0 {
+			per = 4
+		}
+		for _, b := range in.Blocks {
+			b = strings.TrimSpace(b)
+			counts := []int{}
+			if bc, ok := in.PerBlockPerFloor[strings.ToUpper(b)]; ok && len(bc) > 0 {
+				counts = append(counts, bc...)
+			}
+			if len(in.Phases) == 0 {
+				// block only
+				c := floorCounts(floors, per, in.IncludeGround, counts)
+				idx := 0
+				if in.IncludeGround {
+					pg := c[idx]
+					if pg <= 0 {
+						pg = per
+					}
+					for u := 1; u <= pg; u++ {
+						dn := b + floorDoor(0, u)
+						out = append(out, unitInput{AddressType: "hybrid", Block: b, Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+					}
+					idx++
+				}
+				for f := 1; f <= floors; f++ {
+					pf := per
+					if idx < len(c) && c[idx] > 0 {
+						pf = c[idx]
+					}
+					for u := 1; u <= pf; u++ {
+						dn := b + floorDoor(f, u)
+						out = append(out, unitInput{AddressType: "hybrid", Block: b, Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+					}
+					idx++
+				}
+			} else {
+				for _, p := range in.Phases {
+					p = strings.TrimSpace(p)
+					prefix := b + p
+					c := floorCounts(floors, per, in.IncludeGround, counts)
+					idx := 0
+					if in.IncludeGround {
+						pg := c[idx]
+						if pg <= 0 {
+							pg = per
+						}
+						for u := 1; u <= pg; u++ {
+							dn := prefix + floorDoor(0, u)
+							out = append(out, unitInput{AddressType: "hybrid", Block: b, Phase: p, Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+						}
+						idx++
+					}
+					for f := 1; f <= floors; f++ {
+						pf := per
+						if idx < len(c) && c[idx] > 0 {
+							pf = c[idx]
+						}
+						for u := 1; u <= pf; u++ {
+							dn := prefix + floorDoor(f, u)
+							out = append(out, unitInput{AddressType: "hybrid", Block: b, Phase: p, Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+						}
+						idx++
+					}
+				}
+			}
+		}
+	default:
+		n := in.TotalUnits
+		if n <= 0 {
+			n = 1
+		}
+		for i := 1; i <= n; i++ {
+			dn := makeSeq(i)
+			out = append(out, unitInput{AddressType: "simple", DoorNumber: dn, DisplayName: "Unit " + dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+		}
+	}
+	return out
 }
-
 
 func intPtr(v int) *int { return &v }
 
@@ -1008,28 +1121,28 @@ func nullableInt(v *int) any {
 }
 
 func ensurePropertySubmissionReadiness(tx *sqlx.Tx, propertyID string) error {
-    var counts struct {
-        Interior int `db:"interior"`
-        Exterior int `db:"exterior"`
-        Total    int `db:"total"`
-        Units    int `db:"units"`
-    }
-    if err := tx.Get(&counts, `SELECT
+	var counts struct {
+		Interior int `db:"interior"`
+		Exterior int `db:"exterior"`
+		Total    int `db:"total"`
+		Units    int `db:"units"`
+	}
+	if err := tx.Get(&counts, `SELECT
         (SELECT COUNT(*) FROM property_media WHERE property_id=$1 AND kind='interior') AS interior,
         (SELECT COUNT(*) FROM property_media WHERE property_id=$1 AND kind='exterior') AS exterior,
         (SELECT COUNT(*) FROM property_media WHERE property_id=$1) AS total,
         (SELECT COUNT(*) FROM property_units WHERE property_id=$1) AS units`, propertyID); err != nil {
-        return err
-    }
-    if counts.Interior == 0 || counts.Exterior == 0 {
-        return errors.New("add at least one interior and one exterior photo")
-    }
-    if counts.Total < 5 {
-        return errors.New("add at least 5 photos to showcase the property")
-    }
-    if counts.Units == 0 {
-        return errors.New("add at least one unit")
-    }
+		return err
+	}
+	if counts.Interior == 0 || counts.Exterior == 0 {
+		return errors.New("add at least one interior and one exterior photo")
+	}
+	if counts.Total < 5 {
+		return errors.New("add at least 5 photos to showcase the property")
+	}
+	if counts.Units == 0 {
+		return errors.New("add at least one unit")
+	}
 	var loc struct {
 		Lat sql.NullFloat64 `db:"lat"`
 		Lng sql.NullFloat64 `db:"lng"`
