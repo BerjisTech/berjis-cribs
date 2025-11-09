@@ -8,10 +8,30 @@ export function buildPropertyPayload(raw: any): Partial<Property> {
   const description = optionalString(raw?.description);
   const address = cleanRecord(raw?.address);
   const location = normalizeLocation(raw?.location);
-  const amenities = toStringList(raw?.details?.amenities ?? raw?.amenities);
+  // amenities can be comma string or array from checkboxes
+  const amenities = toStringList(
+    (raw?.details && (raw.details.amenitiesList ?? raw.details.amenities)) ?? raw?.amenities
+  );
+
+  // occupancy mode: accept "occupancyModes" (csv/array) or single select "occupancyMode"
+  const occModes = toStringList(
+    (raw?.details && (raw.details.occupancyModes ?? raw.details.occupancyMode)) ?? undefined
+  );
+
+  // base rate: accept structured amount + frequency or fallback string
+  const baseRateAmount = toNumber(raw?.details?.baseRateAmount);
+  const baseRateFreq = optionalString(raw?.details?.baseRateFrequency);
+  const baseRates = baseRateAmount && baseRateFreq
+    ? `${baseRateAmount} ${baseRateFreq}`
+    : optionalString(raw?.details?.baseRates);
+
+  // persist numbering config under details.numbering (for draft + edit)
+  const numberingCfg = cleanRecord(raw?.numbering);
+
   const details = cleanRecord({
-    occupancyModes: toStringList(raw?.details?.occupancyModes),
-    baseRates: optionalString(raw?.details?.baseRates),
+    occupancyModes: occModes,
+    baseRates,
+    numbering: numberingCfg,
   });
   const policies = cleanRecord({
     cancellation: optionalString(raw?.policies?.cancellation ?? raw?.policies?.cancellationPolicy),

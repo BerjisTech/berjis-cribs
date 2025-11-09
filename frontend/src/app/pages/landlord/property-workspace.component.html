@@ -48,17 +48,42 @@
       </div>
       <div formGroupName="details" class="md:col-span-2 grid gap-3 md:grid-cols-3">
         <label class="flex flex-col gap-2">
-          <span class="text-sm text-slate-200">Occupancy modes</span>
-          <input formControlName="occupancyModes" class="input" />
+          <span class="text-sm text-slate-200">Occupancy mode</span>
+          <select formControlName="occupancyMode" class="input">
+            <option value="hourly">Hourly</option>
+            <option value="nightly">Nightly (5pm–10am)</option>
+            <option value="daily">Day (24hrs)</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
         </label>
-        <label class="flex flex-col gap-2 md:col-span-2">
-          <span class="text-sm text-slate-200">Base rates</span>
-          <textarea formControlName="baseRates" rows="2" class="input"></textarea>
+        <label class="flex flex-col gap-2">
+          <span class="text-sm text-slate-200">Base rate amount</span>
+          <input formControlName="baseRateAmount" type="number" min="0" class="input" />
         </label>
-        <label class="flex flex-col gap-2 md:col-span-3">
-          <span class="text-sm text-slate-200">Amenities (comma separated)</span>
-          <textarea formControlName="amenities" rows="2" class="input"></textarea>
+        <label class="flex flex-col gap-2">
+          <span class="text-sm text-slate-200">Base rate duration</span>
+          <select formControlName="baseRateFrequency" class="input">
+            <option value="hourly">Hour</option>
+            <option value="nightly">Night</option>
+            <option value="daily">Day</option>
+            <option value="weekly">Week</option>
+            <option value="monthly">Month</option>
+            <option value="yearly">Year</option>
+          </select>
         </label>
+        <div class="md:col-span-3">
+          <span class="text-sm text-slate-200">Amenities</span>
+          <div class="mt-1 grid grid-cols-2 md:grid-cols-3 gap-2">
+            <label *ngFor="let a of knownAmenities" class="flex items-center gap-2 text-sm">
+              <input type="checkbox" [value]="a"
+                (change)="toggleAmenityWS(a, $event.target.checked)"
+                [checked]="(propertyForm.get('details.amenities')?.value||[]).includes(a)" />
+              <span>{{ a }}</span>
+            </label>
+          </div>
+        </div>
       </div>
       <div formGroupName="policies" class="md:col-span-2 grid gap-3 md:grid-cols-2">
         <label class="flex flex-col gap-2">
@@ -266,5 +291,6 @@
           <span class="text-xs text-slate-500">Units per floor</span>
           <input formControlName="unitsPerFloor" type="number" class="input" />
         </label>
+
 
 

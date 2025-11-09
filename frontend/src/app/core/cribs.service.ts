@@ -118,9 +118,10 @@ export class CribsService {
     return this.http.delete<{ success: boolean }>(`${this.base}/v1/landlord/properties/${propertyId}/media/${mediaId}`, { withCredentials: true, ...this.authHeaders() });
   }
 
-  upsertUnits(propertyId: string, units: Partial<PropertyUnit>[]) {
+  upsertUnits(propertyId: string, units: Partial<PropertyUnit>[], opts?: { replaceExisting?: boolean }) {
+    const replaceExisting = !!opts?.replaceExisting;
     return this.http
-      .put<{ success: boolean; data: PropertyUnit[] }>(`${this.base}/v1/landlord/properties/${propertyId}/units`, { units }, { withCredentials: true, ...this.authHeaders() })
+      .put<{ success: boolean; data: PropertyUnit[] }>(`${this.base}/v1/landlord/properties/${propertyId}/units`, { units, replaceExisting }, { withCredentials: true, ...this.authHeaders() })
       .pipe(map((res) => res.data ?? []));
   }
 
@@ -214,6 +215,7 @@ export class CribsService {
     unitsPerFloor?: number,
     unitType?: string,
     defaultStatus?: string,
+    replaceExisting?: boolean,
   }) {
     return this.http.post<{ success: boolean }>(`${this.base}/v1/landlord/properties/${propertyId}/units/generate`, input, { withCredentials: true, ...this.authHeaders() });
   }

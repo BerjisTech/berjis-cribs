@@ -8,6 +8,8 @@ import { buildPropertyPayload } from "./property-form.utils";
 import { environment } from "../../../environments/environment";
 import * as mapboxgl from 'mapbox-gl';
 import { NumberingEditorComponent } from './numbering-editor.component';
+import { KNOWN_AMENITIES } from '../../shared/amenities';
+import { NumberingConfig, generatePreview } from './numbering-preview.util';
 
 @Component({
   selector: "app-property-wizard",
@@ -68,9 +70,10 @@ export class PropertyWizardComponent implements OnInit, AfterViewInit {
       formattedAddress: [""]
     }),
     details: this.fb.group({
-      occupancyModes: ["nightly,monthly"],
-      baseRates: [""],
-      amenities: [""],
+      occupancyMode: ["monthly"],
+      baseRateAmount: [null as number | null],
+      baseRateFrequency: ["monthly"],
+      amenities: this.fb.control<string[] | null>([]),
     }),
     policies: this.fb.group({
       cancellation: [""],
@@ -109,6 +112,7 @@ export class PropertyWizardComponent implements OnInit, AfterViewInit {
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
   readonly mapError = signal<string | null>(null);
+  readonly knownAmenities = KNOWN_AMENITIES;
 
   // Template helpers to keep AOT-safe expressions
   get numberingVal(): any { return this.form.get('numbering')?.value || {}; }
@@ -173,9 +177,14 @@ ngOnInit() {
           addressType: p.addressType || 'simple',
           address: (p.address || {} as any),
           location: (p.location || {} as any),
-          details: (p.details || {} as any),
+          details: this.mapDetailsForForm(p),
           policies: (p.policies || {} as any),
         } as any);
+        // Load numbering config from details.numbering if present
+        const num = (p.details as any)?.numbering;
+        if (num && typeof num === 'object') {
+          this.form.get('numbering')?.patchValue(num);
+        }
       }
     } catch {}
   }
@@ -183,6 +192,17 @@ ngOnInit() {
   ngAfterViewInit() {
     // Ensure map is created when DOM is ready
     this.ensureMap();
+  }
+
+  // Amenities selection helper
+  toggleAmenity(a: string, checked: boolean) {
+    const ctrl = this.form.get('details.amenities');
+    const cur = ((ctrl?.value as any) || []) as string[];
+    if (checked) {
+      if (!cur.includes(a)) ctrl?.setValue([...(cur || []), a]);
+    } else {
+      ctrl?.setValue((cur || []).filter(x => x !== a));
+    }
   }
 
   next() { this.step.update(s => Math.min(s + 1, 2)); }
@@ -321,71 +341,74 @@ ngOnInit() {
         const created = await firstValueFrom(this.cribs.createProperty(payload));
         propertyId = (created as any).id;
       }
-      // Optionally auto-generate units from numbering
+      // Optionally auto-generate units from numbering using the same preview generator
       if (!saveOnly) {
-        const num = raw.numbering || ({} as any);
-        const addr = raw.addressType;
-        const floors = Number((num as any).floors) || 1;
-        const includeGround = !!(num as any).includeGround;
-        const unitsPerFloor = Number((num as any).unitsPerFloor) || 1;
-        if (floors > 0 && unitsPerFloor > 0) {
-          const hasBlocks = !!(num as any).hasBlocks || addr === 'block' || addr === 'hybrid';
-          const hasPhases = !!(num as any).hasPhases || !!((num as any).phasesList || '').toString().trim();
-          const effectiveAddress: any = (hasBlocks || hasPhases) ? 'hybrid' : addr;
-          const input: any = {
-            addressType: effectiveAddress,
-            floors,
-            includeGround,
-            unitsPerFloor,
-            // Extended numbering fields to align backend with preview (server may ignore until supported)
-            doorScheme: (num as any).doorScheme,
-            floorLabelKind: (num as any).floorLabelKind,
-            blockDigits: Number((num as any).blockDigits || 1),
-            phaseDigits: Number((num as any).phaseDigits || 1),
-            floorDigits: Number((num as any).floorDigits || 1),
-            doorDigits: Number((num as any).doorDigits || ((num as any).floorThreeDigit ? 2 : 1)),
-          };
-          const blocksCsv = ((num as any).blockLabels || '').toString().trim();
-          const phasesCsv = ((num as any).phasesList || '').toString().trim();
-          const blockNaming = (num as any).blockNaming || 'letters';
-          const phaseNaming = (num as any).phaseNaming || 'letters';
-          const blockDigits = Number((num as any).blockDigits || 1);
-          const phaseDigits = Number((num as any).phaseDigits || 1);
-          const blockLabels: string[] = [];
-          const phaseLabels: string[] = [];
-          if (blocksCsv) {
-            blockLabels.push(...blocksCsv.split(',').map((s: string)=>s.trim()).filter(Boolean));
-          } else if (hasBlocks) {
-            const count = Math.max(1, Number((num as any).blocksCount || 1));
-            for (let i=0;i<count;i++) {
-              if (blockNaming === 'numbers') blockLabels.push(String(i+1).padStart(blockDigits, '0'));
-              else blockLabels.push(String.fromCharCode('A'.charCodeAt(0)+i));
+        const v: any = raw.numbering || {};
+        const addr = (raw.addressType || 'floor') as any;
+        const hasBlocks = !!v.hasBlocks || !!(v.blockLabels || '').toString().trim();
+        const hasPhases = !!v.hasPhases || !!(v.phasesList || '').toString().trim();
+        const effectiveAddress: 'simple' | 'block' | 'floor' | 'hybrid' | 'standalone' = (hasBlocks || hasPhases) ? 'hybrid' : addr;
+        const cfg: NumberingConfig = {
+          addressType: effectiveAddress,
+          floors: Math.max(0, Number(v.floors || 0)),
+          includeGround: !!v.includeGround,
+          floorLabelKind: (v.floorLabelKind || 'numeric'),
+          doorScheme: (v.doorScheme || 'floor_numeric'),
+          floorThreeDigit: !!v.floorThreeDigit,
+          groundStyle: (v.groundStyle || 'g'),
+          hasBlocks: !!v.hasBlocks,
+          blocksCount: Number(v.blocksCount || 1),
+          blockNaming: (v.blockNaming || 'letters'),
+          blockPrefix: (v.blockPrefix || ''),
+          blockLabelsCsv: (v.blockLabels || ''),
+          hasPhases: !!v.hasPhases || !!(v.phasesList || '').toString().trim(),
+          phaseSides: Number(v.phaseSides || 1),
+          phaseNaming: (v.phaseNaming || 'letters'),
+          phasesListCsv: (v.phasesList || ''),
+          blockDigits: Number(v.blockDigits || 1),
+          phaseDigits: Number(v.phaseDigits || 1),
+          floorDigits: Number(v.floorDigits || 1),
+          doorDigits: Number(v.doorDigits || (v.floorThreeDigit ? 2 : 1)),
+        };
+        const unitsPerFloor = Math.max(1, Number(v.unitsPerFloor || 1));
+        const blocks = generatePreview(cfg, unitsPerFloor);
+        // Translate preview into unit payloads
+        const unitsPayload: any[] = [];
+        for (const block of blocks) {
+          for (const f of block.floors) {
+            if (!block.sides) {
+              const cells = f.cells as string[];
+              cells.forEach((door, idx) => {
+                unitsPayload.push({
+                  id: '',
+                  addressType: effectiveAddress,
+                  block: (block.label || '').toString().toUpperCase(),
+                  phase: '',
+                  floor: f.idx,
+                  doorNumber: door,
+                  status: 'available',
+                });
+              });
+            } else {
+              const sided = f.cells as string[][];
+              sided.forEach((sideCells, sideIdx) => {
+                sideCells.forEach((door) => {
+                  unitsPayload.push({
+                    id: '',
+                    addressType: effectiveAddress,
+                    block: (block.label || '').toString().toUpperCase(),
+                    phase: (block.sides?.[sideIdx] || '').toString().toUpperCase(),
+                    floor: f.idx,
+                    doorNumber: door,
+                    status: 'available',
+                  });
+                });
+              });
             }
           }
-          if (phasesCsv) {
-            phaseLabels.push(...phasesCsv.split(',').map((s: string)=>s.trim()).filter(Boolean));
-          } else if (hasPhases) {
-            const count = Math.max(1, Number((num as any).phaseSides || 1));
-            for (let i=0;i<count;i++) {
-              if (phaseNaming === 'numbers') phaseLabels.push(String(i+1).padStart(phaseDigits, '0'));
-              else phaseLabels.push(String.fromCharCode('A'.charCodeAt(0)+i));
-            }
-          }
-          if (blockLabels.length) input.blocks = blockLabels;
-          if (phaseLabels.length) input.phases = phaseLabels;
-          if (addr === 'simple') {
-            input.totalUnits = floors * unitsPerFloor * (includeGround ? (floors>0?floors:1) : floors);
-          }
-          // Structured counts
-          const labels = blockLabels.length ? blockLabels : this.blocksForWizard();
-          if (labels.length > 0 && (effectiveAddress === 'floor' || effectiveAddress === 'hybrid' || effectiveAddress === 'block')) {
-            const map: any = {};
-            labels.forEach((b, bi) => { map[(b || '').toString().toUpperCase()] = (this.structuredCountsWizard[bi] || []).map(n => Number(n||0)); });
-            input.perBlockPerFloor = map;
-          } else if (effectiveAddress === 'floor') {
-            input.perFloorCounts = (this.structuredCountsWizard[0] || []).map(n => Number(n||0));
-          }
-          await firstValueFrom(this.cribs.generateUnits(propertyId, input));
+        }
+        if (unitsPayload.length > 0) {
+          await firstValueFrom(this.cribs.upsertUnits(propertyId, unitsPayload));
         }
       }
       await this.router.navigate(["/landlord/properties", propertyId]);
@@ -396,5 +419,32 @@ ngOnInit() {
     } finally {
       this.saving.set(false);
     }
+  }
+
+  private mapDetailsForForm(p: any) {
+    const occ = Array.isArray(p?.details?.occupancyModes) && p.details.occupancyModes.length > 0
+      ? p.details.occupancyModes[0]
+      : (typeof p?.details?.occupancyModes === 'string' ? p.details.occupancyModes : 'monthly');
+    const base = (p?.details?.baseRates || '').toString();
+    let baseAmount: number | null = null;
+    let baseFreq = 'monthly';
+    if (base) {
+      const m = base.match(/([0-9]+(?:\.[0-9]+)?)\s*(hour|night|daily|day|week|weekly|month|monthly|year|yearly)/i);
+      if (m) {
+        baseAmount = Number(m[1]);
+        baseFreq = (m[2] || 'monthly').toLowerCase();
+        if (baseFreq === 'day') baseFreq = 'daily';
+        if (baseFreq === 'week') baseFreq = 'weekly';
+        if (baseFreq === 'month') baseFreq = 'monthly';
+        if (baseFreq === 'year') baseFreq = 'yearly';
+      }
+    }
+    const amenities = Array.isArray(p?.amenities) ? p.amenities : [];
+    return {
+      occupancyMode: occ,
+      baseRateAmount: baseAmount,
+      baseRateFrequency: baseFreq,
+      amenities,
+    } as any;
   }
 }

@@ -51,7 +51,8 @@ type unitInput struct {
 }
 
 type unitsPayload struct {
-	Units []unitInput `json:"units"`
+	Units           []unitInput `json:"units"`
+	ReplaceExisting bool        `json:"replaceExisting"`
 }
 
 // Unit generation input for bulk creation from a structured scheme
@@ -86,6 +87,8 @@ type unitGenerationInput struct {
 	FloorDigits    int    `json:"floorDigits"`
 	DoorDigits     int    `json:"doorDigits"`
 	GroundStyle    string `json:"groundStyle"` // 'g' | '00'
+	// replace existing units when generating
+	ReplaceExisting bool `json:"replaceExisting"`
 }
 
 func registerPropertyRoutes(app *fiber.App, deps protectedDeps) {
@@ -298,6 +301,12 @@ func registerPropertyRoutes(app *fiber.App, deps protectedDeps) {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "transaction error"})
 		}
 		defer tx.Rollback()
+
+		if body.ReplaceExisting {
+			if _, err := tx.Exec(`DELETE FROM property_units WHERE property_id=$1`, propertyID); err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "failed clearing existing units"})
+			}
+		}
 
 		// insert generated units
 		for _, u := range units {
@@ -568,6 +577,12 @@ func registerPropertyRoutes(app *fiber.App, deps protectedDeps) {
 		}
 		defer tx.Rollback()
 
+		if body.ReplaceExisting {
+			if _, err := tx.Exec(`DELETE FROM property_units WHERE property_id=$1`, propertyID); err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "failed clearing existing units"})
+			}
+		}
+
 		resultUnits := []PropertyUnit{}
 		for _, u := range body.Units {
 			if err := validateUnitInput(u); err != nil {
@@ -577,7 +592,7 @@ func registerPropertyRoutes(app *fiber.App, deps protectedDeps) {
 			if err != nil {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": err.Error()})
 			}
-			if u.ID == "" {
+			if body.ReplaceExisting || u.ID == "" {
 				newID := uuid.New().String()
 				row := tx.QueryRowx(`INSERT INTO property_units
                     (id, property_id, structure_label, address_type, block, phase, floor, door_number, display_name,
@@ -895,6 +910,7 @@ func generateUnits(in unitGenerationInput) []unitInput {
 	if groundStyle == "" {
 		groundStyle = "g"
 	}
+	isSequential := doorScheme == "simple_numeric" || doorScheme == "simple_alpha"
 
 	out := []unitInput{}
 	at := strings.ToLower(strings.TrimSpace(in.AddressType))
@@ -1001,27 +1017,61 @@ func generateUnits(in unitGenerationInput) []unitInput {
 		}
 		counts := floorCounts(floors, per, in.IncludeGround, in.PerFloorCounts)
 		idx := 0
-		if in.IncludeGround {
-			pg := counts[idx]
-			if pg <= 0 {
-				pg = 1
+		if isSequential {
+			seq := 1
+			if in.IncludeGround {
+				pg := per
+				if idx < len(counts) && counts[idx] > 0 {
+					pg = counts[idx]
+				}
+				if pg <= 0 {
+					pg = per
+				}
+				for u := 0; u < pg; u++ {
+					dn := makeSeq(seq)
+					seq++
+					out = append(out, unitInput{AddressType: "floor", Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+				}
+				idx++
 			}
-			for u := 1; u <= pg; u++ {
-				dn := floorDoor(0, u)
-				out = append(out, unitInput{AddressType: "floor", Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+			for f := 1; f <= floors; f++ {
+				pf := per
+				if idx < len(counts) && counts[idx] > 0 {
+					pf = counts[idx]
+				}
+				if pf <= 0 {
+					pf = per
+				}
+				for u := 0; u < pf; u++ {
+					dn := makeSeq(seq)
+					seq++
+					out = append(out, unitInput{AddressType: "floor", Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+				}
+				idx++
 			}
-			idx++
-		}
-		for f := 1; f <= floors; f++ {
-			pf := per
-			if idx < len(counts) && counts[idx] > 0 {
-				pf = counts[idx]
+		} else {
+			if in.IncludeGround {
+				pg := counts[idx]
+				if pg <= 0 {
+					pg = 1
+				}
+				for u := 1; u <= pg; u++ {
+					dn := floorDoor(0, u)
+					out = append(out, unitInput{AddressType: "floor", Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+				}
+				idx++
 			}
-			for u := 1; u <= pf; u++ {
-				dn := floorDoor(f, u)
-				out = append(out, unitInput{AddressType: "floor", Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+			for f := 1; f <= floors; f++ {
+				pf := per
+				if idx < len(counts) && counts[idx] > 0 {
+					pf = counts[idx]
+				}
+				for u := 1; u <= pf; u++ {
+					dn := floorDoor(f, u)
+					out = append(out, unitInput{AddressType: "floor", Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+				}
+				idx++
 			}
-			idx++
 		}
 	case "hybrid":
 		if len(in.Blocks) == 0 {
@@ -1042,45 +1092,49 @@ func generateUnits(in unitGenerationInput) []unitInput {
 				counts = append(counts, bc...)
 			}
 			if len(in.Phases) == 0 {
-				// block only
 				c := floorCounts(floors, per, in.IncludeGround, counts)
 				idx := 0
-				if in.IncludeGround {
-					pg := c[idx]
-					if pg <= 0 {
-						pg = per
+				if isSequential {
+					seq := 1
+					if in.IncludeGround {
+						pg := per
+						if idx < len(c) && c[idx] > 0 {
+							pg = c[idx]
+						}
+						if pg <= 0 {
+							pg = per
+						}
+						for u := 0; u < pg; u++ {
+							dn := b + makeSeq(seq)
+							seq++
+							out = append(out, unitInput{AddressType: "hybrid", Block: b, Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+						}
+						idx++
 					}
-					for u := 1; u <= pg; u++ {
-						dn := b + floorDoor(0, u)
-						out = append(out, unitInput{AddressType: "hybrid", Block: b, Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+					for f := 1; f <= floors; f++ {
+						pf := per
+						if idx < len(c) && c[idx] > 0 {
+							pf = c[idx]
+						}
+						if pf <= 0 {
+							pf = per
+						}
+						for u := 0; u < pf; u++ {
+							dn := b + makeSeq(seq)
+							seq++
+							out = append(out, unitInput{AddressType: "hybrid", Block: b, Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+						}
+						idx++
 					}
-					idx++
-				}
-				for f := 1; f <= floors; f++ {
-					pf := per
-					if idx < len(c) && c[idx] > 0 {
-						pf = c[idx]
-					}
-					for u := 1; u <= pf; u++ {
-						dn := b + floorDoor(f, u)
-						out = append(out, unitInput{AddressType: "hybrid", Block: b, Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
-					}
-					idx++
-				}
-			} else {
-				for _, p := range in.Phases {
-					p = strings.TrimSpace(p)
-					prefix := b + p
-					c := floorCounts(floors, per, in.IncludeGround, counts)
-					idx := 0
+				} else {
 					if in.IncludeGround {
 						pg := c[idx]
 						if pg <= 0 {
 							pg = per
 						}
 						for u := 1; u <= pg; u++ {
-							dn := prefix + floorDoor(0, u)
-							out = append(out, unitInput{AddressType: "hybrid", Block: b, Phase: p, Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+							dn := b + floorDoor(0, u)
+							out = append(out, unitInput{AddressType: "hybrid", Block: b, Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
 						}
 						idx++
 					}
@@ -1090,10 +1144,73 @@ func generateUnits(in unitGenerationInput) []unitInput {
 							pf = c[idx]
 						}
 						for u := 1; u <= pf; u++ {
-							dn := prefix + floorDoor(f, u)
-							out = append(out, unitInput{AddressType: "hybrid", Block: b, Phase: p, Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+							dn := b + floorDoor(f, u)
+							out = append(out, unitInput{AddressType: "hybrid", Block: b, Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
 						}
 						idx++
+					}
+				}
+			} else {
+				for _, p := range in.Phases {
+					p = strings.TrimSpace(p)
+					prefix := b + p
+					c := floorCounts(floors, per, in.IncludeGround, counts)
+					idx := 0
+					if isSequential {
+						seq := 1
+						if in.IncludeGround {
+							pg := per
+							if idx < len(c) && c[idx] > 0 {
+								pg = c[idx]
+							}
+							if pg <= 0 {
+								pg = per
+							}
+							for u := 0; u < pg; u++ {
+								dn := prefix + makeSeq(seq)
+								seq++
+								out = append(out, unitInput{AddressType: "hybrid", Block: b, Phase: p, Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+							}
+							idx++
+						}
+						for f := 1; f <= floors; f++ {
+							pf := per
+							if idx < len(c) && c[idx] > 0 {
+								pf = c[idx]
+							}
+							if pf <= 0 {
+								pf = per
+							}
+							for u := 0; u < pf; u++ {
+								dn := prefix + makeSeq(seq)
+								seq++
+								out = append(out, unitInput{AddressType: "hybrid", Block: b, Phase: p, Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+							}
+							idx++
+						}
+					} else {
+						if in.IncludeGround {
+							pg := c[idx]
+							if pg <= 0 {
+								pg = per
+							}
+							for u := 1; u <= pg; u++ {
+								dn := prefix + floorDoor(0, u)
+								out = append(out, unitInput{AddressType: "hybrid", Block: b, Phase: p, Floor: intPtr(0), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+							}
+							idx++
+						}
+						for f := 1; f <= floors; f++ {
+							pf := per
+							if idx < len(c) && c[idx] > 0 {
+								pf = c[idx]
+							}
+							for u := 1; u <= pf; u++ {
+								dn := prefix + floorDoor(f, u)
+								out = append(out, unitInput{AddressType: "hybrid", Block: b, Phase: p, Floor: intPtr(f), DoorNumber: dn, DisplayName: dn, UnitType: in.UnitType, Status: in.DefaultStatus})
+							}
+							idx++
+						}
 					}
 				}
 			}

@@ -2,7 +2,7 @@ import { NgClass, NgFor, NgIf } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { Component, OnInit, inject, signal } from "@angular/core";
 import { FormArray, FormBuilder, ReactiveFormsModule } from "@angular/forms";
-import { ActivatedRoute } from "@angular/router";
+import { ActivatedRoute, RouterLink } from "@angular/router";
 import { firstValueFrom } from "rxjs";
 import { CribsService } from "../../core/cribs.service";
 import { Property, PropertyMedia, PropertyUnit } from "../../shared/models";
@@ -11,11 +11,12 @@ import { environment } from "../../../environments/environment";
 import { PropertyUnitMapComponent } from "./property-unit-map.component";
 import { NumberingEditorComponent } from './numbering-editor.component';
 import { generatePreview, NumberingConfig } from './numbering-preview.util';
+import { KNOWN_AMENITIES } from '../../shared/amenities';
 
 @Component({
   selector: "app-property-workspace",
   standalone: true,
-  imports: [ReactiveFormsModule, FormsModule, NgFor, NgIf, NgClass, PropertyUnitMapComponent, NumberingEditorComponent],
+  imports: [ReactiveFormsModule, FormsModule, NgFor, NgIf, NgClass, RouterLink, PropertyUnitMapComponent, NumberingEditorComponent],
   templateUrl: "./property-workspace.component.html",
   styleUrl: "./property-workspace.component.css",
 })
@@ -42,7 +43,12 @@ export class PropertyWorkspaceComponent implements OnInit {
     description: [""],
     addressType: [""],
     location: this.fb.group({ lat: [null], lng: [null] }),
-    details: this.fb.group({ occupancyModes: [""], baseRates: [""], amenities: [""] }),
+    details: this.fb.group({
+      occupancyMode: ["monthly"],
+      baseRateAmount: [null as number | null],
+      baseRateFrequency: ["monthly"],
+      amenities: this.fb.control<string[] | null>([]),
+    }),
     policies: this.fb.group({ cancellation: [""], houseRules: [""] }),
   });
 
@@ -95,6 +101,18 @@ export class PropertyWorkspaceComponent implements OnInit {
   readonly selectedLeasePayments = signal<any[]>([]);
   readonly addPaymentForm = this.fb.group({ amount: [0], method: [""], reference: [""], paidOn: [""] });
   readonly closeLeaseForm = this.fb.group({ endDate: [""], note: [""] });
+  readonly knownAmenities = KNOWN_AMENITIES;
+
+  // Amenities selection helper for workspace form
+  toggleAmenityWS(a: string, checked: boolean) {
+    const ctrl = this.propertyForm.get('details.amenities');
+    const cur = ((ctrl?.value as any) || []) as string[];
+    if (checked) {
+      if (!cur.includes(a)) ctrl?.setValue([...(cur || []), a]);
+    } else {
+      ctrl?.setValue((cur || []).filter(x => x !== a));
+    }
+  }
 
   // Non-destructive preview state for Generate Units
   unitPreviewMode: 'simple' | 'block' | 'floor' | 'hybrid' | 'standalone' = 'floor';
@@ -156,11 +174,7 @@ export class PropertyWorkspaceComponent implements OnInit {
       description: property.description,
       addressType: property.addressType,
       location: { lat: property.location?.lat ?? null, lng: property.location?.lng ?? null },
-      details: {
-        occupancyModes: (property.details?.occupancyModes || []).join(","),
-        baseRates: property.details?.baseRates || "",
-        amenities: Array.isArray(property.amenities) ? property.amenities.join(",") : "",
-      },
+      details: this.mapDetailsForForm(property),
       policies: {
         cancellation: property.policies?.cancellation || "",
         houseRules: property.policies?.houseRules || "",
@@ -168,6 +182,38 @@ export class PropertyWorkspaceComponent implements OnInit {
     });
     this.units.clear();
     (property.units || []).forEach((unit) => this.units.push(this.createUnitGroup(unit)));
+    // Patch generator from saved numbering
+    const num: any = (property.details as any)?.numbering;
+    if (num && typeof num === 'object') {
+      this.generateForm.patchValue(num);
+    }
+  }
+
+  private mapDetailsForForm(property: Property) {
+    const occ = Array.isArray((property as any)?.details?.occupancyModes) && (property as any).details.occupancyModes.length
+      ? (property as any).details.occupancyModes[0]
+      : (typeof (property as any)?.details?.occupancyModes === 'string' ? (property as any).details.occupancyModes : 'monthly');
+    const base = (((property as any)?.details || {}) as any).baseRates?.toString() || '';
+    let baseAmount: number | null = null;
+    let baseFreq = 'monthly';
+    if (base) {
+      const m = base.match(/([0-9]+(?:\.[0-9]+)?)\s*(hour|night|daily|day|week|weekly|month|monthly|year|yearly)/i);
+      if (m) {
+        baseAmount = Number(m[1]);
+        baseFreq = (m[2] || 'monthly').toLowerCase();
+        if (baseFreq === 'day') baseFreq = 'daily';
+        if (baseFreq === 'week') baseFreq = 'weekly';
+        if (baseFreq === 'month') baseFreq = 'monthly';
+        if (baseFreq === 'year') baseFreq = 'yearly';
+      }
+    }
+    const amenities = Array.isArray((property as any).amenities) ? (property as any).amenities : [];
+    return {
+      occupancyMode: occ,
+      baseRateAmount: baseAmount,
+      baseRateFrequency: baseFreq,
+      amenities,
+    } as any;
   }
 
   private createUnitGroup(unit?: PropertyUnit) {
@@ -303,7 +349,79 @@ export class PropertyWorkspaceComponent implements OnInit {
 
   async generateUnits() {
     if (!this.property()) return;
+    if (!confirm('Generate units will replace all existing units for this property. Continue?')) return;
     const raw = this.generateForm.getRawValue();
+    this.saving.set(true);
+    // New: reuse the preview generator to build unit labels and upsert directly
+    try {
+      const hasBlocksN = !!(raw as any).hasBlocks || !!(raw as any).blockLabelsCsv;
+      const hasPhasesN = !!(raw as any).hasPhases || !!(raw as any).phasesListCsv;
+      const effectiveAddressN = (hasBlocksN || hasPhasesN)
+        ? 'hybrid'
+        : ((raw.addressType || 'floor') as 'simple' | 'block' | 'floor' | 'hybrid' | 'standalone');
+      // persist numbering config for later edits
+      await firstValueFrom(this.cribs.updateProperty(this.property()!.id, buildPropertyPayload({
+        name: this.propertyForm.value.name,
+        addressType: this.propertyForm.value.addressType,
+        description: this.propertyForm.value.description,
+        location: this.propertyForm.value.location,
+        details: { numbering: raw },
+      })));
+      const cfgN: NumberingConfig = {
+        addressType: effectiveAddressN,
+        floors: Math.max(0, Number((raw as any).floors || 0)),
+        includeGround: !!(raw as any).includeGround,
+        floorLabelKind: ((raw as any).floorLabelKind || 'numeric'),
+        doorScheme: ((raw as any).doorScheme || 'floor_numeric'),
+        floorThreeDigit: !!(raw as any).floorThreeDigit,
+        groundStyle: ((raw as any).groundStyle || 'g'),
+        hasBlocks: !!(raw as any).hasBlocks || !!(raw as any).blockLabelsCsv,
+        blocksCount: Number((raw as any).blocksCount || 1),
+        blockNaming: ((raw as any).blockNaming || 'letters'),
+        blockPrefix: ((raw as any).blockPrefix || ''),
+        blockLabelsCsv: ((raw as any).blockLabelsCsv || ''),
+        hasPhases: !!(raw as any).hasPhases || !!(raw as any).phasesListCsv,
+        phaseSides: Number((raw as any).phaseSides || 1),
+        phaseNaming: ((raw as any).phaseNaming || 'letters'),
+        phasesListCsv: ((raw as any).phasesListCsv || ''),
+        blockDigits: Number((raw as any).blockDigits || 1),
+        phaseDigits: Number((raw as any).phaseDigits || 1),
+        floorDigits: Number((raw as any).floorDigits || 1),
+        doorDigits: Number((raw as any).doorDigits || ((raw as any).floorThreeDigit ? 2 : 1)),
+      };
+      const unitsPerFloorN = Math.max(1, Number((raw as any).unitsPerFloor || 1));
+      const blocksN = generatePreview(cfgN, unitsPerFloorN);
+      const unitsPayloadN: any[] = [];
+      for (const block of blocksN) {
+        for (const f of block.floors) {
+          if (!block.sides) {
+            const cells = f.cells as string[];
+            cells.forEach((door) => unitsPayloadN.push({ id: '', addressType: effectiveAddressN, block: (block.label||'').toUpperCase(), phase: '', floor: f.idx, doorNumber: door, status: 'available' }));
+          } else {
+            const sided = f.cells as string[][];
+            sided.forEach((sideCells, sideIdx) => sideCells.forEach((door) => unitsPayloadN.push({
+              id: '',
+              addressType: effectiveAddressN,
+              block: (block.label || '').toUpperCase(),
+              phase: (block.sides?.[sideIdx] || '').toUpperCase(),
+              floor: f.idx,
+              doorNumber: door,
+              status: 'available'
+            })));
+          }
+        }
+      }
+      if (unitsPayloadN.length > 0) {
+        await firstValueFrom(this.cribs.upsertUnits(this.property()!.id, unitsPayloadN, { replaceExisting: true }));
+      }
+      await this.load(this.property()!.id);
+      return; // skip legacy server-side generator
+    } catch {
+      // fall back to legacy flow below if something fails
+    } finally {
+      this.saving.set(false);
+    }
+    this.saving.set(true);
     // Derive block/phase labels from editor settings when CSVs are not provided
     const hasBlocks = !!(raw as any).hasBlocks;
     const hasPhases = !!(raw as any).hasPhases;
@@ -374,8 +492,12 @@ export class PropertyWorkspaceComponent implements OnInit {
       });
       payload.perBlockPerFloor = map;
     }
-    await firstValueFrom(this.cribs.generateUnits(this.property()!.id, payload));
-    await this.load(this.property()!.id);
+    try {
+      await firstValueFrom(this.cribs.generateUnits(this.property()!.id, { ...payload, replaceExisting: true }));
+      await this.load(this.property()!.id);
+    } finally {
+      this.saving.set(false);
+    }
   }
 
   onUnitSelect = (u: any) => {
