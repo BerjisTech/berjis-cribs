@@ -1,12 +1,8 @@
-import { Injectable, computed, signal, inject } from "@angular/core";
+import { Injectable, computed, inject, signal } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { firstValueFrom } from "rxjs";
+import { CoreAuthService, CoreAuthSession } from "@berjis/angular-auth";
 import { environment } from "../../environments/environment";
-
-interface VerifyResponse {
-  success: boolean;
-  data: { valid: boolean; uid?: number; uuid?: string; email?: string };
-}
 
 export interface UserProfile {
   uuid: string;
@@ -20,6 +16,8 @@ export interface UserProfile {
 @Injectable({ providedIn: "root" })
 export class SessionService {
   private http = inject(HttpClient);
+  private auth = inject(CoreAuthService);
+
   private state = signal({
     user: null as UserProfile | null,
     roles: [] as string[],
@@ -39,73 +37,70 @@ export class SessionService {
   readonly canManageLandlord = computed(() =>
     this.state().cribsRoles.some(
       (role) =>
-        role === "cribs.landlord" || role.startsWith("cribs.landlord.") || role.startsWith("cribs.staff") || role.startsWith("cribs.admin"),
+        role === "cribs.landlord" ||
+        role.startsWith("cribs.landlord.") ||
+        role.startsWith("cribs.staff") ||
+        role.startsWith("cribs.admin"),
     ),
   );
   readonly canAccessAdmin = computed(() => this.isPlatformAdmin() || this.isCribsAdmin());
 
   async ensure(): Promise<boolean> {
-    if (this.inflight) return this.inflight;
+    if (this.inflight) {
+      return this.inflight;
+    }
     this.state.update((s) => ({ ...s, loading: true }));
     this.inflight = (async () => {
-      let verify = await firstValueFrom(
-        this.http.get<VerifyResponse>(environment.coreApi + "/v1/auth/verify", { withCredentials: true })
-      );
-      if (!verify?.data?.valid) {
-        await firstValueFrom(
-          this.http.post(environment.coreApi + "/v1/auth/refresh", {}, { withCredentials: true })
+      try {
+        const session = await this.auth.ensureAuth({ maxAgeMs: 1500 });
+        if (!session?.valid) {
+          this.state.update((s) => ({ ...s, user: null, roles: [], cribsRoles: [], loading: false }));
+          return false;
+        }
+
+        const [profileRes, rolesRes, cribsRes] = await Promise.all([
+          this.getCore<{ success: boolean; data: UserProfile }>("/v1/me"),
+          this.getCore<{ success: boolean; data: string[] }>("/v1/auth/roles"),
+          this.getCore<{ success: boolean; data: string[] }>("/v1/apps/cribs/roles"),
+        ]);
+
+        const profile = this.buildProfile(session, profileRes?.data ?? null);
+        const globalRoles = this.mergeRoleSets(
+          this.normalizeRoles(rolesRes?.data),
+          this.collectGlobalRoles(session),
         );
-        verify = await firstValueFrom(
-          this.http.get<VerifyResponse>(environment.coreApi + "/v1/auth/verify", { withCredentials: true })
+        let cribsRoles = this.mergeRoleSets(
+          this.normalizeRoles(cribsRes?.data),
+          this.collectCribsRoles(session),
         );
-      }
-      if (!verify?.data?.valid) {
+
+        if (!cribsRoles.some((role) => role === "cribs.landlord" || role.startsWith("cribs.landlord."))) {
+          const landlord = await this.getCribs<{ success: boolean; data: any | null }>("/v1/landlord/profile");
+          if (landlord?.data && landlord.data.status === "active") {
+            cribsRoles = this.mergeRoleSets(["cribs.landlord"], cribsRoles);
+          }
+        }
+
+        this.state.update((s) => ({
+          ...s,
+          user: profile,
+          roles: globalRoles,
+          cribsRoles,
+          loading: false,
+        }));
+        return true;
+      } catch (_err) {
         this.state.update((s) => ({ ...s, user: null, roles: [], cribsRoles: [], loading: false }));
         return false;
       }
-      const [profileRes, rolesRes, cribsRes] = await Promise.all([
-        firstValueFrom(
-          this.http.get<{ success: boolean; data: UserProfile }>(environment.coreApi + "/v1/me", { withCredentials: true })
-        ),
-        firstValueFrom(
-          this.http.get<{ success: boolean; data: string[] }>(environment.coreApi + "/v1/auth/roles", { withCredentials: true })
-        ),
-        firstValueFrom(
-          this.http.get<{ success: boolean; data: string[] }>(environment.coreApi + "/v1/apps/cribs/roles", { withCredentials: true })
-        ),
-      ]);
-      let cribsRolesArr = cribsRes?.data ?? [];
-      // Fallback: if Core API hasn't granted roles yet, but the user has an active landlord
-      // profile in Cribs, treat them as landlord on the client so UI unlocks immediately.
-      try {
-        if (!cribsRolesArr.some((r) => r === "cribs.landlord" || r.startsWith("cribs.landlord."))) {
-          const lr = await firstValueFrom(
-            this.http.get<{ success: boolean; data: any | null }>(environment.cribsApi + "/v1/landlord/profile", { withCredentials: true })
-          );
-          if (lr?.data && (lr as any).data.status === "active") {
-            cribsRolesArr = ["cribs.landlord", ...cribsRolesArr];
-          }
-        }
-      } catch { /* ignore */ }
-
-      this.state.update((s) => ({
-        ...s,
-        user: profileRes?.data ?? null,
-        roles: rolesRes?.data ?? [],
-        cribsRoles: cribsRolesArr,
-        loading: false,
-      }));
-      return true;
-    })().catch((_err) => {
-      this.state.update((s) => ({ ...s, user: null, roles: [], cribsRoles: [], loading: false }));
-      return false;
-    }).finally(() => {
+    })().finally(() => {
       this.inflight = null;
     });
     return this.inflight;
   }
 
   signOutLocal() {
+    this.auth.clearCache();
     this.state.update((s) => ({ ...s, user: null, roles: [], cribsRoles: [] }));
   }
 
@@ -114,7 +109,8 @@ export class SessionService {
       return false;
     }
     const current = this.state();
-    return current.roles.includes(role) || current.cribsRoles.includes(role);
+    const target = role.trim().toLowerCase();
+    return current.roles.includes(target) || current.cribsRoles.includes(target);
   }
 
   hasAnyRole(...roles: string[]) {
@@ -125,8 +121,9 @@ export class SessionService {
     if (!prefix) {
       return false;
     }
+    const pref = prefix.toLowerCase();
     const current = this.state();
-    return current.roles.some((role) => role.startsWith(prefix)) || current.cribsRoles.some((role) => role.startsWith(prefix));
+    return current.roles.some((role) => role.startsWith(pref)) || current.cribsRoles.some((role) => role.startsWith(pref));
   }
 
   isAdmin() {
@@ -137,5 +134,92 @@ export class SessionService {
     return this.canManageLandlord();
   }
 
-  // No front-end managed tokens in unified auth; cookie session + X-User-UUID is used.
+  private normalizeRoles(values?: string[] | null): string[] {
+    if (!values || !values.length) {
+      return [];
+    }
+    const set = new Set<string>();
+    for (const value of values) {
+      if (typeof value !== "string") {
+        continue;
+      }
+      const trimmed = value.trim().toLowerCase();
+      if (trimmed) {
+        set.add(trimmed);
+      }
+    }
+    return Array.from(set);
+  }
+
+  private mergeRoleSets(...sets: Array<string[] | undefined>): string[] {
+    const set = new Set<string>();
+    for (const list of sets) {
+      if (!list) {
+        continue;
+      }
+      for (const value of list) {
+        const trimmed = typeof value === "string" ? value.trim().toLowerCase() : "";
+        if (trimmed) {
+          set.add(trimmed);
+        }
+      }
+    }
+    return Array.from(set);
+  }
+
+  private collectGlobalRoles(session: CoreAuthSession): string[] {
+    return this.mergeRoleSets(session.roles ?? [], session.platformRoles ?? []);
+  }
+
+  private collectCribsRoles(session: CoreAuthSession): string[] {
+    const appRoles = session.appRoles?.["cribs"] ?? [];
+    return this.normalizeRoles(appRoles);
+  }
+
+  private buildProfile(session: CoreAuthSession, apiProfile: UserProfile | null): UserProfile {
+    const baseProfile = (session.profile || {}) as Record<string, unknown>;
+    const merged: UserProfile = {
+      uuid: this.pickString(session.uuid) ||
+        this.pickString(baseProfile["uuid"]) ||
+        this.pickString(apiProfile?.uuid) ||
+        "",
+      email: this.pickString(session.email) || this.pickString(baseProfile["email"]) || this.pickString(apiProfile?.email) || "",
+      name: this.pickString(baseProfile["name"]) || this.pickString(apiProfile?.name),
+      username: this.pickString(baseProfile["username"]) || this.pickString(apiProfile?.username),
+      avatarUrl: this.pickString(baseProfile["avatarUrl"] ?? baseProfile["avatar_url"]) || this.pickString(apiProfile?.avatarUrl),
+      publicProfile: typeof baseProfile["publicProfile"] === "boolean"
+        ? baseProfile["publicProfile"]
+        : apiProfile?.publicProfile,
+    };
+    if (!merged.uuid && apiProfile?.uuid) {
+      merged.uuid = apiProfile.uuid;
+    }
+    if (!merged.email && apiProfile?.email) {
+      merged.email = apiProfile.email;
+    }
+    return merged;
+  }
+
+  private pickString(value: unknown): string | undefined {
+    if (typeof value === "string" && value.trim().length) {
+      return value.trim();
+    }
+    return undefined;
+  }
+
+  private async getCore<T>(path: string): Promise<T | null> {
+    try {
+      return await firstValueFrom(this.http.get<T>(environment.coreApi + path, { withCredentials: true }));
+    } catch {
+      return null;
+    }
+  }
+
+  private async getCribs<T>(path: string): Promise<T | null> {
+    try {
+      return await firstValueFrom(this.http.get<T>(environment.cribsApi + path, { withCredentials: true }));
+    } catch {
+      return null;
+    }
+  }
 }

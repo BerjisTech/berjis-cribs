@@ -4,6 +4,7 @@ go 1.23.0
 
 require (
 	github.com/aarondl/null/v8 v8.1.3
+	github.com/berjistech/berjis-ecosystem/shared/coreauth v0.0.0
 	github.com/gofiber/fiber/v2 v2.52.4
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.5.0
@@ -12,6 +13,8 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/jung-kurt/gofpdf v1.16.2
 )
+
+replace github.com/berjistech/berjis-ecosystem/shared/coreauth => ../../shared/coreauth
 
 require (
 	github.com/aarondl/inflect v0.0.2 // indirect

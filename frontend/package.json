@@ -5,7 +5,8 @@
   "scripts": {
     "start": "ng serve --host 0.0.0.0 --port 4400",
     "build": "ng build",
-    "test": "ng test --watch=false --browsers=ChromeHeadless"
+    "test": "ng test --watch=false --browsers=ChromeHeadless",
+    "lint": "ng lint"
   },
   "dependencies": {
     "@angular/animations": "^18.0.0",
@@ -26,11 +27,15 @@
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^18.0.0",
+    "@angular-eslint/builder": "20.5.2",
     "@angular/cli": "^18.0.0",
     "@angular/compiler-cli": "^18.0.0",
+    "@eslint/js": "^9.39.0",
     "@types/jasmine": "^5.1.4",
-    "@types/node": "^20.12.0",
     "@types/mapbox-gl": "^2.7.19",
+    "@types/node": "^20.12.0",
+    "angular-eslint": "20.5.2",
+    "eslint": "^9.39.0",
     "jasmine-core": "^5.1.2",
     "karma": "^6.4.3",
     "karma-chrome-launcher": "^3.2.0",
@@ -38,6 +43,7 @@
     "karma-jasmine": "^5.1.0",
     "karma-jasmine-html-reporter": "^2.1.0",
     "puppeteer": "^22.15.0",
-    "typescript": "~5.4.0"
+    "typescript": "~5.4.0",
+    "typescript-eslint": "8.46.3"
   }
 }

@@ -1,11 +1,14 @@
 package server
 
 import (
+	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/berjistech/berjis-ecosystem/cribs/service/internal/auth"
 	"github.com/berjistech/berjis-ecosystem/cribs/service/internal/config"
+	coreauth "github.com/berjistech/berjis-ecosystem/shared/coreauth"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
@@ -55,7 +58,26 @@ func New(opts Options) *fiber.App {
 	registerPublicRoutes(app, publicDeps)
 	registerPublicUnitStatusRoutes(app, publicDeps)
 
-	app.Use(auth.Middleware(auth.Options{HS256Secret: opts.Config.AuthHS256Secret, Env: opts.Config.Env}))
+	authClient := opts.httpClient()
+	var authVerifier *coreauth.Verifier
+	if base := strings.TrimSpace(opts.Config.CoreAPIBase); base != "" {
+		if v, err := coreauth.NewVerifier(coreauth.Config{
+			CoreAPIBase: base,
+			HTTPClient:  authClient,
+		}); err != nil {
+			log.Printf("warn: coreauth verifier init failed: %v", err)
+		} else {
+			authVerifier = v
+		}
+	}
+
+	app.Use(auth.Middleware(auth.Options{
+		HS256Secret: opts.Config.AuthHS256Secret,
+		Env:         opts.Config.Env,
+		CoreAPIBase: opts.Config.CoreAPIBase,
+		HTTPClient:  authClient,
+		Verifier:    authVerifier,
+	}))
 
 	// Serve uploaded files (e.g., compliance documents) if configured
 	if opts.Config.UploadsDirectory != "" {
